@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="es-PY">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>PesoPlan — Planificador de comidas</title>
+<meta name="description" content="Planificador diario de comidas para bajar de peso, con seguimiento de peso, grasa corporal e IMC.">
+<meta name="theme-color" content="#C46A3F">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PesoPlan">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="app-shell">
+
+  <header class="top-bar" id="top-bar">
+    <div class="brand"><span class="brand-mark">Peso</span>Plan</div>
+    <div class="top-bar-sub" id="top-bar-sub"></div>
+  </header>
+
+  <main>
+
+    <!-- ===================== HOY ===================== -->
+    <section class="view is-active" id="view-today">
+
+      <div class="date-strip">
+        <div class="date-nav"><button id="btn-prev-day" aria-label="Día anterior">‹</button></div>
+        <div class="date-label" id="today-date-label">hoy</div>
+        <div class="date-nav"><button id="btn-next-day" aria-label="Día siguiente">›</button></div>
+      </div>
+
+      <div class="card budget-card">
+        <div class="budget-ring-wrap">
+          <svg viewBox="0 0 100 100">
+            <circle class="budget-ring-bg" cx="50" cy="50" r="42" stroke-width="9"></circle>
+            <circle class="budget-ring-fg" id="budget-ring-fg" cx="50" cy="50" r="42" stroke-width="9"></circle>
+          </svg>
+          <div class="budget-ring-label">
+            <span class="n" id="budget-ring-pct">0%</span>
+            <span class="u">del día</span>
+          </div>
+        </div>
+        <div class="budget-meta">
+          <div class="row"><span>Consumido</span><b id="budget-consumed">0 kcal</b></div>
+          <div class="row"><span>Presupuesto</span><b id="budget-total">0 kcal</b></div>
+          <div class="row"><span>Restante</span><b id="budget-remaining">0 kcal</b></div>
+        </div>
+      </div>
+
+      <div class="day-totals" id="day-macro-totals"></div>
+
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button class="btn btn-olive btn-sm" id="btn-suggest-day">✨ Sugerir día completo</button>
+        <button class="btn btn-subtle btn-sm" id="btn-scramble-day">🎲 Mezclar día</button>
+      </div>
+
+      <div id="meals-container"></div>
+
+      <div class="section-title" style="margin-top:18px;">Nota del día <span class="hint">opcional</span></div>
+      <div class="field">
+        <textarea id="day-note" placeholder="Antojos, cómo te sentiste, ajustes de mañana…"></textarea>
+      </div>
+
+    </section>
+
+    <!-- ===================== ALIMENTOS ===================== -->
+    <section class="view" id="view-foods">
+
+      <div class="section-title mt-0">
+        Alimentos y grupos
+      </div>
+
+      <div class="chip-select" style="margin-bottom:14px;">
+        <button class="chip is-selected" data-subview="foods" id="subtab-foods">Alimentos</button>
+        <button class="chip" data-subview="groups" id="subtab-groups">Grupos</button>
+      </div>
+
+      <div id="foods-subview">
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="food-search" placeholder="Buscar alimento…">
+        </div>
+        <div class="filter-tabs" id="category-filter"></div>
+        <div id="foods-list"></div>
+      </div>
+
+      <div id="groups-subview" style="display:none;">
+        <div id="groups-list"></div>
+        <button class="btn btn-ghost btn-block" id="btn-new-group" style="margin-top:6px;">+ Nuevo grupo</button>
+      </div>
+
+    </section>
+
+    <!-- ===================== PROGRESO ===================== -->
+    <section class="view" id="view-progress">
+
+      <div class="section-title mt-0">
+        Tu progreso
+        <button class="btn btn-primary btn-sm" id="btn-add-body-log">+ Registrar</button>
+      </div>
+
+      <div class="stat-grid" id="progress-stats"></div>
+
+      <div id="eta-banner-slot"></div>
+
+      <div class="eyebrow" style="margin-bottom:6px;">Peso (kg)</div>
+      <div class="card chart-card">
+        <canvas id="chart-weight"></canvas>
+        <div class="chart-legend">
+          <span><span class="dot" style="background:#C46A3F;"></span>Peso</span>
+          <span><span class="dot" style="background:#D6A24A;"></span>Meta</span>
+          <span><span class="dot" style="background:#6B7353;"></span>Proyección</span>
+        </div>
+      </div>
+
+      <div class="eyebrow" style="margin:16px 0 6px;">Grasa corporal (%)</div>
+      <div class="card chart-card">
+        <canvas id="chart-fat"></canvas>
+      </div>
+
+      <div class="eyebrow" style="margin:16px 0 6px;">IMC</div>
+      <div class="card chart-card">
+        <canvas id="chart-bmi"></canvas>
+      </div>
+
+      <div class="section-title">Historial</div>
+      <div class="card" id="body-log-list"></div>
+
+    </section>
+
+    <!-- ===================== AJUSTES ===================== -->
+    <section class="view" id="view-settings">
+
+      <div class="section-title mt-0">Ajustes</div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Meta y medidas</div>
+        <div class="settings-row">
+          <div class="label-block"><div class="t">Peso objetivo</div><div class="s">Tu meta a alcanzar</div></div>
+          <div class="unit-suffix"><input type="number" id="set-goal-weight" inputmode="decimal" step="0.1"><span class="suffix">kg</span></div>
+        </div>
+        <div class="settings-row">
+          <div class="label-block"><div class="t">Altura</div><div class="s">Para calcular el IMC</div></div>
+          <div class="unit-suffix"><input type="number" id="set-height" inputmode="numeric" step="1"><span class="suffix">cm</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Presupuesto calórico</div>
+        <div class="settings-row">
+          <div class="label-block"><div class="t">Límite diario</div><div class="s">Total del día</div></div>
+          <div class="unit-suffix"><input type="number" id="set-daily-limit" inputmode="numeric" step="10"><span class="suffix">kcal</span></div>
+        </div>
+        <hr class="divider" style="margin:10px 0;">
+        <div class="eyebrow" style="margin-bottom:6px;">Objetivo aproximado por comida</div>
+        <div id="meal-targets-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Respaldo</div>
+        <div class="settings-row">
+          <div class="label-block"><div class="t">Respaldo automático</div><div class="s" id="auto-backup-status">—</div></div>
+        </div>
+        <p class="small text-faint" style="margin:2px 0 12px;">Cada día que abrís la app se guarda una copia local completa. Como es una app sin servidor, además te recomendamos exportar el archivo de vez en cuando y guardarlo en tu Drive o donde prefieras.</p>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" id="btn-export-now">⬇ Exportar ahora</button>
+          <button class="btn btn-subtle btn-sm" id="btn-import">⬆ Importar archivo</button>
+          <input type="file" id="import-file-input" accept="application/json" style="display:none;">
+        </div>
+        <hr class="divider">
+        <div class="eyebrow" style="margin-bottom:8px;">Respaldos automáticos guardados</div>
+        <div id="backup-list" class="backup-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px; color:#9C4A3A;">Zona de riesgo</div>
+        <p class="small text-faint" style="margin:0 0 12px;">Borra todos los alimentos, planes y registros de esta app en este dispositivo. No se puede deshacer — exportá un respaldo antes.</p>
+        <button class="btn btn-danger btn-sm" id="btn-reset-all">Borrar todos los datos</button>
+      </div>
+
+      <footer class="app-footer">PesoPlan · datos guardados en este dispositivo</footer>
+
+    </section>
+
+  </main>
+
+  <nav class="tab-bar">
+    <button class="tab-btn is-active" data-tab="today">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+      <span>Hoy</span>
+    </button>
+    <button class="tab-btn" data-tab="foods">
+      <svg viewBox="0 0 24 24"><path d="M4 3v7a4 4 0 0 0 8 0V3"></path><path d="M8 10v11"></path><path d="M17 3c-1.7 0-3 2-3 5s1.3 5 3 5"></path><path d="M17 3v18"></path></svg>
+      <span>Alimentos</span>
+    </button>
+    <button class="tab-btn" data-tab="progress">
+      <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+      <span>Progreso</span>
+    </button>
+    <button class="tab-btn" data-tab="settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9c.26.43.7.73 1.55 1H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"></path></svg>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+</div>
+
+<button class="fab" id="fab-add-food" title="Nuevo alimento" style="display:none;">+</button>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===================== SHEET: backdrop compartido ===================== -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+
+<!-- ===================== SHEET: alimento (crear/editar) ===================== -->
+<div class="sheet" id="sheet-food">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="food-sheet-title">Nuevo alimento</h3>
+    <button class="sheet-close" data-close-sheet="sheet-food">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="f-name" placeholder="Ej: Palta">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Categoría</label>
+        <select id="f-category"></select>
+      </div>
+      <div class="field">
+        <label>Unidad</label>
+        <select id="f-unit">
+          <option value="g">Gramos (g)</option>
+          <option value="ml">Mililitros (ml)</option>
+          <option value="unidad">Unidades</option>
+        </select>
+      </div>
+    </div>
+    <p class="small text-faint" id="f-base-hint" style="margin-top:-6px;">Los valores nutricionales son por 100 g.</p>
+
+    <div class="field-row">
+      <div class="field"><label>Calorías</label><div class="unit-suffix"><input type="number" id="f-kcal" inputmode="decimal"><span class="suffix">kcal</span></div></div>
+      <div class="field"><label>Proteína</label><div class="unit-suffix"><input type="number" id="f-protein" inputmode="decimal"><span class="suffix">g</span></div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Carbohidratos</label><div class="unit-suffix"><input type="number" id="f-carbs" inputmode="decimal"><span class="suffix">g</span></div></div>
+      <div class="field"><label>Grasas</label><div class="unit-suffix"><input type="number" id="f-fat" inputmode="decimal"><span class="suffix">g</span></div></div>
+    </div>
+    <div class="field">
+      <label>Fibra</label>
+      <div class="unit-suffix" style="max-width:140px;"><input type="number" id="f-fiber" inputmode="decimal"><span class="suffix">g</span></div>
+    </div>
+
+    <div class="field">
+      <label>¿Para qué comidas sirve?</label>
+      <div class="chip-select" id="f-mealtypes"></div>
+    </div>
+
+    <div class="field checkbox-row">
+      <input type="checkbox" id="f-favorite">
+      <label class="mb-0" for="f-favorite" style="margin:0;">Marcar como favorito</label>
+    </div>
+
+    <div class="field">
+      <label>Notas <span class="hint text-faint">opcional</span></label>
+      <textarea id="f-notes" placeholder="Marca, variedad, aclaraciones…"></textarea>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-food" style="flex:1;">Guardar alimento</button>
+      <button class="btn btn-danger" id="btn-delete-food" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: grupo (crear/editar) ===================== -->
+<div class="sheet" id="sheet-group">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="group-sheet-title">Nuevo grupo</h3>
+    <button class="sheet-close" data-close-sheet="sheet-group">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Nombre del grupo</label>
+      <input type="text" id="g-name" placeholder="Ej: Desayuno de siempre">
+    </div>
+    <div class="field">
+      <label>Alimentos del grupo</label>
+      <div id="g-items-list"></div>
+      <button class="btn btn-ghost btn-sm" id="btn-add-group-item" style="margin-top:8px;">+ Agregar alimento</button>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-group" style="flex:1;">Guardar grupo</button>
+      <button class="btn btn-danger" id="btn-delete-group" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: agregar a comida (picker) ===================== -->
+<div class="sheet" id="sheet-picker">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="picker-sheet-title">Agregar</h3>
+    <button class="sheet-close" data-close-sheet="sheet-picker">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="chip-select" style="margin-bottom:12px;">
+      <button class="chip is-selected" data-picker-tab="foods" id="picker-tab-foods">Alimentos</button>
+      <button class="chip" data-picker-tab="groups" id="picker-tab-groups">Grupos</button>
+    </div>
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" id="picker-search" placeholder="Buscar…">
+    </div>
+    <div id="picker-list"></div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: cantidad ===================== -->
+<div class="sheet" id="sheet-amount">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="amount-sheet-title">Cantidad</h3>
+    <button class="sheet-close" data-close-sheet="sheet-amount">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="text-center" style="margin-bottom:16px;">
+      <div class="eyebrow" id="amount-food-name">—</div>
+    </div>
+    <div class="field-row" style="align-items:end;">
+      <button class="mini-btn" id="amount-minus" style="width:44px;height:44px;">−</button>
+      <div class="field" style="flex:1;">
+        <div class="unit-suffix">
+          <input type="number" id="amount-value" inputmode="decimal" style="text-align:center; font-family:var(--font-mono); font-size:18px;">
+          <span class="suffix" id="amount-unit-label">g</span>
+        </div>
+      </div>
+      <button class="mini-btn" id="amount-plus" style="width:44px;height:44px;">+</button>
+    </div>
+    <div class="text-center num-md" id="amount-kcal-preview" style="margin-top:6px; color:var(--terracotta-dark);"></div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-confirm-amount" style="flex:1;">Agregar</button>
+      <button class="btn btn-danger" id="btn-remove-amount" style="display:none;">Quitar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: registro corporal ===================== -->
+<div class="sheet" id="sheet-body-log">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3>Registrar medida</h3>
+    <button class="sheet-close" data-close-sheet="sheet-body-log">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Fecha</label>
+      <input type="date" id="bl-date">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Peso</label>
+        <div class="unit-suffix"><input type="number" id="bl-weight" inputmode="decimal" step="0.1"><span class="suffix">kg</span></div>
+      </div>
+      <div class="field">
+        <label>Grasa corporal <span class="text-faint">opcional</span></label>
+        <div class="unit-suffix"><input type="number" id="bl-fat" inputmode="decimal" step="0.1"><span class="suffix">%</span></div>
+      </div>
+    </div>
+    <p class="small text-faint" id="bl-bmi-preview"></p>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-body-log" style="flex:1;">Guardar registro</button>
+      <button class="btn btn-danger" id="btn-delete-body-log" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/data-seed.js"></script>
+<script src="js/suggest.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

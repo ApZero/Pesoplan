@@ -1,0 +1,17 @@
+{
+  "name": "PesoPlan — Planificador de comidas",
+  "short_name": "PesoPlan",
+  "description": "Planificador diario de comidas para bajar de peso, con seguimiento de peso, grasa corporal e IMC.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4EFE6",
+  "theme_color": "#C46A3F",
+  "lang": "es-PY",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
