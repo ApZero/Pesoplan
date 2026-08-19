@@ -1,6 +1,6 @@
 {
-  "name": "PesoPlan — Planificador de comidas",
-  "short_name": "PesoPlan",
+  "name": "Fit Bee — Planificador de comidas",
+  "short_name": "Fit Bee",
   "description": "Planificador diario de comidas para bajar de peso, con seguimiento de peso, grasa corporal e IMC.",
   "start_url": "./index.html",
   "scope": "./",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>PesoPlan — Planificador de comidas</title>
+<title>Fit Bee — Planificador de comidas</title>
 <meta name="description" content="Planificador diario de comidas para bajar de peso, con seguimiento de peso, grasa corporal e IMC.">
 <meta name="theme-color" content="#C46A3F">
 <link rel="manifest" href="manifest.json">
@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PesoPlan">
+<meta name="apple-mobile-web-app-title" content="Fit Bee">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -21,7 +21,7 @@
 <div id="app-shell">
 
   <header class="top-bar" id="top-bar">
-    <div class="brand"><span class="brand-mark">Peso</span>Plan</div>
+    <div class="brand"><span class="brand-mark">Fit</span>Bee</div>
     <div class="top-bar-sub" id="top-bar-sub"></div>
   </header>
 
@@ -36,7 +36,7 @@
         <div class="date-nav"><button id="btn-next-day" aria-label="Día siguiente">›</button></div>
       </div>
 
-      <div class="card budget-card">
+      <div class="card budget-card" id="budget-card" role="button" tabindex="0">
         <div class="budget-ring-wrap">
           <svg viewBox="0 0 100 100">
             <circle class="budget-ring-bg" cx="50" cy="50" r="42" stroke-width="9"></circle>
@@ -55,11 +55,6 @@
       </div>
 
       <div class="day-totals" id="day-macro-totals"></div>
-
-      <div class="btn-row" style="margin-bottom:14px;">
-        <button class="btn btn-olive btn-sm" id="btn-suggest-day">✨ Sugerir día completo</button>
-        <button class="btn btn-subtle btn-sm" id="btn-scramble-day">🎲 Mezclar día</button>
-      </div>
 
       <div id="meals-container"></div>
 
@@ -88,6 +83,11 @@
           <input type="text" id="food-search" placeholder="Buscar alimento…">
         </div>
         <div class="filter-tabs" id="category-filter"></div>
+        <div class="btn-row" id="food-sort" style="margin-bottom:10px;">
+          <span class="small text-faint" style="align-self:center;">Ordenar por:</span>
+          <button class="chip is-selected" data-sort="name">Nombre</button>
+          <button class="chip" data-sort="kcal">Calorías</button>
+        </div>
         <div id="foods-list"></div>
       </div>
 
@@ -168,7 +168,7 @@
         <div class="settings-row">
           <div class="label-block"><div class="t">Respaldo automático</div><div class="s" id="auto-backup-status">—</div></div>
         </div>
-        <p class="small text-faint" style="margin:2px 0 12px;">Cada día que abrís la app se guarda una copia local completa. Como es una app sin servidor, además te recomendamos exportar el archivo de vez en cuando y guardarlo en tu Drive o donde prefieras.</p>
+        <p class="small text-faint" style="margin:2px 0 12px;">El respaldo automático se guarda <b>dentro de la app</b> (no en la carpeta de Descargas del celular) — no vas a ver una notificación de descarga ni un archivo nuevo, pero sí un aviso rápido en pantalla cuando se genera. Se restaura desde la lista de abajo si algo sale mal.<br><br>Para tener un archivo real que puedas guardar en tu Drive o enviarte por WhatsApp, usá <b>"Exportar ahora"</b>: eso sí descarga un .json a tu celular (normalmente a Descargas), igual que cualquier otro archivo.</p>
         <div class="btn-row">
           <button class="btn btn-primary btn-sm" id="btn-export-now">⬇ Exportar ahora</button>
           <button class="btn btn-subtle btn-sm" id="btn-import">⬆ Importar archivo</button>
@@ -185,7 +185,7 @@
         <button class="btn btn-danger btn-sm" id="btn-reset-all">Borrar todos los datos</button>
       </div>
 
-      <footer class="app-footer">PesoPlan · datos guardados en este dispositivo</footer>
+      <footer class="app-footer">Fit Bee · datos guardados en este dispositivo</footer>
 
     </section>
 
@@ -358,6 +358,16 @@
       <button class="btn btn-danger" id="btn-remove-amount" style="display:none;">Quitar</button>
     </div>
   </div>
+</div>
+
+<!-- ===================== SHEET: resumen del día ===================== -->
+<div class="sheet" id="sheet-day-summary">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="summary-sheet-title">Resumen del día</h3>
+    <button class="sheet-close" data-close-sheet="sheet-day-summary">✕</button>
+  </div>
+  <div class="sheet-body" id="summary-sheet-body"></div>
 </div>
 
 <!-- ===================== SHEET: registro corporal ===================== -->
