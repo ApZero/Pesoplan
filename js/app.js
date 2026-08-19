@@ -1,5 +1,5 @@
 /* =========================================================
-   PesoPlan — app.js (estado, render, eventos)
+   Fit Bee — app.js (estado, render, eventos)
    ========================================================= */
 
 const RING_R = 42;
@@ -16,7 +16,7 @@ const state = {
   foodsSubview: 'foods',
   currentDateStr: todayStr(),
   currentDay: null,
-  foodFilter: { search: '', category: 'all' },
+  foodFilter: { search: '', category: 'all', sort: 'name' },
   pickerTab: 'foods',
   pickerContext: null, // {mealType, date}
   amountContext: null, // {mode, foodId, mealType, date, itemIndex}
@@ -72,7 +72,7 @@ async function init() {
 
   await ensureSeedData();
   await loadAllState();
-  await runAutoBackupIfNeeded(state.settings);
+  const backupResult = await runAutoBackupIfNeeded(state.settings);
   refreshAutoBackupStatus();
 
   populateStaticSelectors();
@@ -85,9 +85,11 @@ async function init() {
   renderSettingsTab();
 
   if (!state.settings.onboarded) {
-    showToast('¡Bienvenido a PesoPlan! Configurá tu meta en Ajustes.');
+    showToast('¡Bienvenido a Fit Bee! Configurá tu meta en Ajustes.');
     state.settings.onboarded = true;
     await saveSettings();
+  } else if (backupResult && !backupResult.skipped) {
+    showToast('Respaldo automático del día guardado en la app ✓');
   }
 
   window.addEventListener('scroll', () => {}, { passive: true });
@@ -261,8 +263,8 @@ function renderMealCard(day, mealDef) {
   const body = meal.skip
     ? `<div class="skip-label">Sin comida en este horario</div>`
     : (meal.items.length
-      ? `<div>${rows}</div><div class="meal-foot"><button class="btn btn-ghost btn-sm" data-action="add-item" data-mt="${mealDef.id}">+ Agregar</button><button class="btn btn-subtle btn-sm" data-action="scramble" data-mt="${mealDef.id}">🎲 Mezclar</button></div>`
-      : `<div class="meal-empty">Sin alimentos todavía</div><div class="meal-foot"><button class="btn btn-ghost btn-sm" data-action="add-item" data-mt="${mealDef.id}">+ Agregar</button><button class="btn btn-olive btn-sm" data-action="suggest" data-mt="${mealDef.id}">✨ Sugerir</button></div>`);
+      ? `<div>${rows}</div><div class="meal-foot"><button class="btn btn-ghost btn-sm" data-action="add-item" data-mt="${mealDef.id}">+ Agregar</button></div>`
+      : `<div class="meal-empty">Sin alimentos todavía</div><div class="meal-foot"><button class="btn btn-ghost btn-sm" data-action="add-item" data-mt="${mealDef.id}">+ Agregar</button></div>`);
 
   return `
     <div class="meal-card ${meal.skip ? 'is-skipped' : ''}" data-mt="${mealDef.id}">
@@ -293,31 +295,92 @@ async function toggleMealSkip(mealType) {
   renderToday();
 }
 
-async function suggestMeal(mealType) {
-  const target = state.settings.mealTargets[mealType] || 300;
-  const items = suggestForMeal(state.foods, mealType, target);
-  if (items.length === 0) {
-    showToast('No hay alimentos configurados para esta comida todavía.');
-    return;
+/* ---------------------------------------------------------
+   Resumen del día (sheet, se abre al tocar el anillo)
+   --------------------------------------------------------- */
+
+function openDaySummary() {
+  const day = state.currentDay;
+  const prefix = dateLabelPrefix(day.date).replace(' · ', '');
+  document.getElementById('summary-sheet-title').textContent = prefix
+    ? `Resumen — ${prefix}, ${formatFullDate(day.date)}`
+    : `Resumen — ${formatFullDate(day.date)}`;
+
+  const totals = computeDayTotals(day);
+  const limit = state.settings.dailyLimit || 0;
+  const delta = limit - totals.kcal;
+  const deltaClass = delta >= 0 ? 'pos' : 'neg';
+  const deltaTxt = delta >= 0 ? `${fmt(delta)} kcal disponibles` : `${fmt(Math.abs(delta))} kcal por encima del presupuesto`;
+
+  let html = `
+    <div class="summary-block summary-hero">
+      <div class="n">${fmt(totals.kcal)}</div>
+      <div class="l">de ${fmt(limit)} kcal planificadas</div>
+      <div class="delta ${deltaClass}">${deltaTxt}</div>
+    </div>
+    <div class="summary-block">
+      <div class="day-totals" style="margin:0 0 4px;">
+        <div class="macro-pill"><div class="n">${fmt(totals.protein)}g</div><div class="l">Prot.</div></div>
+        <div class="macro-pill"><div class="n">${fmt(totals.carbs)}g</div><div class="l">Carbs</div></div>
+        <div class="macro-pill"><div class="n">${fmt(totals.fat)}g</div><div class="l">Grasas</div></div>
+        <div class="macro-pill"><div class="n">${fmt(totals.fiber)}g</div><div class="l">Fibra</div></div>
+      </div>
+    </div>
+    <div class="summary-block">
+      <div class="eyebrow" style="margin-bottom:8px;">Por comida</div>
+      ${MEAL_TYPES.map((m) => {
+        const meal = day.meals[m.id];
+        const cat = CATEGORY_MAP.otro;
+        if (meal.skip) {
+          return `<div class="summary-meal-row is-skipped"><div class="label"><span class="dot" style="background:${cat.color};"></span>${m.label}</div><div class="val">omitida</div></div>`;
+        }
+        const t = sumItemsNutrition(meal.items, state.foodsById);
+        const target = state.settings.mealTargets[m.id] || 0;
+        return `<div class="summary-meal-row"><div class="label"><span class="dot" style="background:var(--terracotta);"></span>${m.label}</div><div class="val">${fmt(t.kcal)} / ${fmt(target)} kcal</div></div>`;
+      }).join('')}
+    </div>`;
+
+  // alimentos individuales del día, con su comida y kcal
+  const allItems = [];
+  MEAL_TYPES.forEach((m) => {
+    const meal = day.meals[m.id];
+    if (meal.skip) return;
+    meal.items.forEach((it) => {
+      const food = state.foodsById[it.foodId];
+      if (!food) return;
+      allItems.push({ name: food.name, mealLabel: m.label, amount: it.amount, unit: food.unit, kcal: kcalForAmount(food, it.amount) });
+    });
+  });
+
+  if (allItems.length === 0) {
+    html += `<div class="summary-block"><p class="small text-faint">Todavía no agregaste alimentos hoy.</p></div>`;
+  } else if (allItems.length <= 3) {
+    const sorted = allItems.slice().sort((a, b) => b.kcal - a.kcal);
+    html += `<div class="summary-block"><div class="eyebrow" style="margin-bottom:8px;">Alimentos del día</div>${sorted.map(summaryItemRow).join('')}</div>`;
+  } else {
+    const sortedDesc = allItems.slice().sort((a, b) => b.kcal - a.kcal);
+    const top = sortedDesc.slice(0, 3);
+    const bottom = sortedDesc.slice(-3).reverse();
+    html += `
+      <div class="summary-block">
+        <div class="eyebrow" style="margin-bottom:8px;">Más calorías</div>
+        ${top.map(summaryItemRow).join('')}
+      </div>
+      <div class="summary-block">
+        <div class="eyebrow" style="margin-bottom:8px;">Menos calorías</div>
+        ${bottom.map(summaryItemRow).join('')}
+      </div>`;
   }
-  state.currentDay.meals[mealType].items = items;
-  state.currentDay.meals[mealType].skip = false;
-  await saveCurrentDay();
-  renderToday();
-  showToast('Sugerencia lista. Podés mezclar si no te convence.');
+
+  document.getElementById('summary-sheet-body').innerHTML = html;
+  openSheet('sheet-day-summary');
 }
 
-async function suggestFullDay() {
-  let any = false;
-  MEAL_TYPES.forEach((m) => {
-    const meal = state.currentDay.meals[m.id];
-    if (meal.skip) return;
-    const items = suggestForMeal(state.foods, m.id, state.settings.mealTargets[m.id] || 300);
-    if (items.length) { meal.items = items; any = true; }
-  });
-  await saveCurrentDay();
-  renderToday();
-  showToast(any ? 'Día sugerido. Mezclá cualquier sección si querés cambiarla.' : 'Agregá alimentos con tipos de comida para poder sugerir.');
+function summaryItemRow(it) {
+  return `<div class="summary-item-row">
+    <div><div class="n">${escapeHtml(it.name)}</div><div class="m">${it.mealLabel} · ${fmt(it.amount)} ${UNIT_LABELS[it.unit]}</div></div>
+    <div class="k">${fmt(it.kcal)} kcal</div>
+  </div>`;
 }
 
 /* ---------------------------------------------------------
@@ -484,6 +547,11 @@ function renderFoodsList() {
   let items = state.foods.filter((f) => f.name.toLowerCase().includes(search));
   if (cat === 'favorites') items = items.filter((f) => f.favorite);
   else if (cat !== 'all') items = items.filter((f) => f.category === cat);
+
+  items = items.slice().sort((a, b) => {
+    if (state.foodFilter.sort === 'kcal') return b.kcal - a.kcal;
+    return a.name.localeCompare(b.name, 'es');
+  });
 
   const list = document.getElementById('foods-list');
   if (items.length === 0) {
@@ -952,8 +1020,10 @@ function wireEvents() {
     await saveCurrentDay();
   });
 
-  document.getElementById('btn-suggest-day').addEventListener('click', suggestFullDay);
-  document.getElementById('btn-scramble-day').addEventListener('click', suggestFullDay);
+  document.getElementById('budget-card').addEventListener('click', openDaySummary);
+  document.getElementById('budget-card').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDaySummary(); }
+  });
 
   document.getElementById('meals-container').addEventListener('click', (e) => {
     const actionEl = e.target.closest('[data-action]');
@@ -961,8 +1031,6 @@ function wireEvents() {
     const action = actionEl.dataset.action;
     const mt = actionEl.dataset.mt;
     if (action === 'toggle-skip') toggleMealSkip(mt);
-    else if (action === 'suggest') suggestMeal(mt);
-    else if (action === 'scramble') suggestMeal(mt);
     else if (action === 'add-item') openPicker(mt);
     else if (action === 'edit-item') {
       const idx = parseInt(actionEl.dataset.idx, 10);
@@ -975,6 +1043,13 @@ function wireEvents() {
   document.getElementById('subtab-foods').addEventListener('click', () => switchFoodsSubview('foods'));
   document.getElementById('subtab-groups').addEventListener('click', () => switchFoodsSubview('groups'));
   document.getElementById('food-search').addEventListener('input', (e) => { state.foodFilter.search = e.target.value; renderFoodsList(); });
+  document.getElementById('food-sort').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-sort]');
+    if (!chip) return;
+    state.foodFilter.sort = chip.dataset.sort;
+    document.querySelectorAll('#food-sort [data-sort]').forEach((c) => c.classList.toggle('is-selected', c === chip));
+    renderFoodsList();
+  });
   document.getElementById('category-filter').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-cat]');
     if (!chip) return;

@@ -1,5 +1,5 @@
 /* =========================================================
-   PesoPlan — capa de datos (IndexedDB)
+   Fit Bee — capa de datos (IndexedDB)
    ========================================================= */
 
 const DB_NAME = 'pesoplan-db';

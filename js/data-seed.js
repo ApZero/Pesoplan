@@ -1,12 +1,12 @@
 /* =========================================================
-   PesoPlan — datos iniciales
+   Fit Bee — datos iniciales
    ========================================================= */
 
 const MEAL_TYPES = [
   { id: 'desayuno', label: 'Desayuno', icon: 'sun' },
-  { id: 'colacion_manana', label: 'Colación mañana', icon: 'apple' },
+  { id: 'colacion_manana', label: 'Snack mañana', icon: 'apple' },
   { id: 'almuerzo', label: 'Almuerzo', icon: 'bowl' },
-  { id: 'colacion_tarde', label: 'Colación tarde', icon: 'apple' },
+  { id: 'colacion_tarde', label: 'Snack tarde', icon: 'apple' },
   { id: 'cena', label: 'Cena', icon: 'moon' }
 ];
 

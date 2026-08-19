@@ -1,5 +1,5 @@
 /* =========================================================
-   PesoPlan — motor de sugerencias
+   Fit Bee — motor de sugerencias
    ========================================================= */
 
 function shuffleArray(arr) {

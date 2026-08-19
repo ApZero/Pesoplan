@@ -1,5 +1,5 @@
 /* =========================================================
-   PesoPlan — respaldo automático diario + exportar/importar
+   Fit Bee — respaldo automático diario + exportar/importar
    ========================================================= */
 
 const BACKUP_KEEP = 30;
@@ -83,7 +83,7 @@ function downloadSnapshotAsFile(snapshot) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `pesoplan-backup-${todayStr()}.json`;
+  a.download = `fitbee-backup-${todayStr()}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -114,7 +114,7 @@ function readFileAsJSON(file) {
 async function importFromFile(file) {
   const data = await readFileAsJSON(file);
   if (!data || (!data.foods && !data.days && !data.body)) {
-    throw new Error('El archivo no tiene el formato esperado de PesoPlan.');
+    throw new Error('El archivo no tiene el formato esperado de Fit Bee.');
   }
   return applySnapshot(data);
 }

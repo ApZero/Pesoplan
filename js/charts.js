@@ -1,5 +1,5 @@
 /* =========================================================
-   PesoPlan — gráficos (canvas nativo, sin librerías)
+   Fit Bee — gráficos (canvas nativo, sin librerías)
    ========================================================= */
 
 /**
