@@ -6,18 +6,19 @@ const BACKUP_KEEP = 30;
 const APP_VERSION = 2;
 
 async function collectFullSnapshot() {
-  const [foods, groups, days, body, settingsArr, users] = await Promise.all([
+  const [foods, groups, days, body, settingsArr, users, containers] = await Promise.all([
     DB.getAll('foods'),
     DB.getAll('groups'),
     DB.getAll('days'),
     DB.getAll('body'),
     DB.getAll('settings'),
-    DB.getAll('users')
+    DB.getAll('users'),
+    DB.getAll('containers')
   ]);
   return {
     appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
-    foods, groups, days, body, users,
+    foods, groups, days, body, users, containers,
     settings: settingsArr
   };
 }
@@ -70,19 +71,21 @@ async function listBackups() {
 }
 
 async function applySnapshot(snapshot) {
-  await Promise.all(['foods', 'groups', 'days', 'body', 'users'].map((s) => DB.clear(s)));
+  await Promise.all(['foods', 'groups', 'days', 'body', 'users', 'containers'].map((s) => DB.clear(s)));
   if (snapshot.foods && snapshot.foods.length) await DB.putMany('foods', snapshot.foods);
   if (snapshot.groups && snapshot.groups.length) await DB.putMany('groups', snapshot.groups);
   if (snapshot.days && snapshot.days.length) await DB.putMany('days', snapshot.days);
   if (snapshot.body && snapshot.body.length) await DB.putMany('body', snapshot.body);
   if (snapshot.users && snapshot.users.length) await DB.putMany('users', snapshot.users);
+  if (snapshot.containers && snapshot.containers.length) await DB.putMany('containers', snapshot.containers);
   if (snapshot.settings && snapshot.settings.length) await DB.putMany('settings', snapshot.settings);
   return {
     foods: (snapshot.foods || []).length,
     groups: (snapshot.groups || []).length,
     days: (snapshot.days || []).length,
     body: (snapshot.body || []).length,
-    users: (snapshot.users || []).length
+    users: (snapshot.users || []).length,
+    containers: (snapshot.containers || []).length
   };
 }
 

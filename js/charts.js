@@ -187,13 +187,37 @@ function drawProgressChart(canvas, entries, opts = {}) {
     ctx.fill();
   }
 
-  // eje X: primera y última fecha
+  // marca de "hoy" sobre el eje, si el gráfico se extiende más allá
+  // (por la proyección) para que quede claro dónde termina lo real
+  if (projection) {
+    const lastT = Math.round((lastTime - firstTime) / 86400000);
+    const xToday = xForT(lastT);
+    ctx.save();
+    ctx.strokeStyle = '#DFD5C1';
+    ctx.setLineDash([2, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xToday, padT);
+    ctx.lineTo(xToday, padT + plotH);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#8C8474';
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('hoy', xToday, padT - 4);
+  }
+
+  // eje X: primera fecha y fecha del extremo derecho del gráfico
+  // (si hay proyección, el extremo derecho es la fecha proyectada,
+  // no la de hoy — mostrar "hoy" ahí sería engañoso)
   ctx.fillStyle = '#8C8474';
   ctx.font = '9.5px "JetBrains Mono", monospace';
   ctx.textAlign = 'left';
   ctx.fillText(formatShortDate(entries[0].date), padL, h - 4);
   ctx.textAlign = 'right';
-  ctx.fillText(formatShortDate(lastEntry.date), w - padR, h - 4);
+  const rightLabelStr = projection ? dateToStr(projection.date) : lastEntry.date;
+  ctx.fillText(formatShortDate(rightLabelStr), w - padR, h - 4);
 
   return { projection };
 }

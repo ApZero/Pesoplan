@@ -3,8 +3,8 @@
    ========================================================= */
 
 const DB_NAME = 'pesoplan-db';
-const DB_VERSION = 2;
-const STORES = ['foods', 'groups', 'days', 'body', 'settings', 'backups', 'users'];
+const DB_VERSION = 3;
+const STORES = ['foods', 'groups', 'days', 'body', 'settings', 'backups', 'users', 'containers'];
 
 let _dbPromise = null;
 
@@ -34,6 +34,9 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains('users')) {
         db.createObjectStore('users', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('containers')) {
+        db.createObjectStore('containers', { keyPath: 'id' }); // recipientes: { id, name, weight (g), notes }
       }
     };
     req.onsuccess = () => resolve(req.result);

@@ -10,6 +10,8 @@ const state = {
   foodsById: {},
   groups: [],
   groupsById: {},
+  containers: [],
+  containersById: {},
   users: [],
   usersById: {},
   currentUserId: null,
@@ -28,6 +30,7 @@ const state = {
   editingFoodId: null,
   editingGroupId: null,
   groupSheetItems: [],
+  editingContainerId: null,
   editingBodyLogDate: null,
   editingUserId: null,
   userSheetEmoji: USER_EMOJIS[0],
@@ -181,17 +184,20 @@ async function migrateToMultiUserIfNeeded() {
 }
 
 async function loadAllState() {
-  const [foods, groups, users, appRow, bodyAll] = await Promise.all([
+  const [foods, groups, users, appRow, bodyAll, containers] = await Promise.all([
     DB.getAll('foods'),
     DB.getAll('groups'),
     DB.getAll('users'),
     DB.get('settings', 'app'),
-    DB.getAll('body')
+    DB.getAll('body'),
+    DB.getAll('containers')
   ]);
   state.foods = foods.sort((a, b) => a.name.localeCompare(b.name, 'es'));
   state.foodsById = Object.fromEntries(foods.map((f) => [f.id, f]));
   state.groups = groups.sort((a, b) => a.name.localeCompare(b.name, 'es'));
   state.groupsById = Object.fromEntries(groups.map((g) => [g.id, g]));
+  state.containers = containers.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  state.containersById = Object.fromEntries(containers.map((c) => [c.id, c]));
   state.users = users.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   state.usersById = Object.fromEntries(users.map((u) => [u.id, u]));
 
@@ -941,6 +947,7 @@ function renderFoodsTab() {
   renderCategoryFilterChips();
   renderFoodsList();
   renderGroupsList();
+  renderContainersTab();
 }
 
 /* ---------------------------------------------------------
@@ -1105,6 +1112,110 @@ async function deleteGroupFromSheet() {
   closeSheet('sheet-group');
   renderFoodsTab();
   showToast('Grupo eliminado.');
+}
+
+/* ---------------------------------------------------------
+   RECIPIENTES — tara para pesar comida por diferencia
+   --------------------------------------------------------- */
+
+function renderContainerCalc() {
+  const select = document.getElementById('calc-container-select');
+  if (state.containers.length === 0) {
+    select.innerHTML = `<option value="">Sin recipientes registrados</option>`;
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+    select.innerHTML = state.containers.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${fmt(c.weight)} g)</option>`).join('');
+  }
+  updateContainerCalcResult();
+}
+
+function updateContainerCalcResult() {
+  const select = document.getElementById('calc-container-select');
+  const container = state.containersById[select.value];
+  const grossInput = document.getElementById('calc-gross-weight');
+  const gross = parseFloat(grossInput.value);
+  const resultEl = document.getElementById('container-calc-result');
+
+  if (!container) {
+    resultEl.textContent = '';
+    return;
+  }
+  if (!gross || gross <= 0) {
+    resultEl.textContent = `Tara: ${fmt(container.weight)} g`;
+    return;
+  }
+  const net = gross - container.weight;
+  if (net < 0) {
+    resultEl.innerHTML = `<span style="color:var(--rust);">El peso bruto es menor que la tara (${fmt(container.weight)} g) — revisá la balanza.</span>`;
+    return;
+  }
+  resultEl.innerHTML = `Contenido neto: <b>${fmt(net)} g</b> <span class="text-faint">(bruto ${fmt(gross)} g − tara ${fmt(container.weight)} g)</span>`;
+}
+
+function renderContainersList() {
+  const list = document.getElementById('containers-list');
+  if (state.containers.length === 0) {
+    list.innerHTML = emptyStateHtml('🥡', 'Sin recipientes todavía', 'Registrá el peso vacío de tus tuppers y potes para poder pesar comida por diferencia.');
+    return;
+  }
+  list.innerHTML = state.containers.map((c) => `
+    <div class="food-list-item" data-action="edit-container" data-id="${c.id}">
+      <div class="food-swatch" style="background:#6B735322;">🥡</div>
+      <div class="food-list-info">
+        <div class="n">${escapeHtml(c.name)}</div>
+        <div class="m">${c.notes ? escapeHtml(c.notes) : 'tara registrada'}</div>
+      </div>
+      <div class="food-list-kcal">${fmt(c.weight)}<span class="u">g</span></div>
+    </div>`).join('');
+}
+
+function renderContainersTab() {
+  renderContainerCalc();
+  renderContainersList();
+}
+
+function openContainerSheet(containerId) {
+  state.editingContainerId = containerId;
+  const isEdit = !!containerId;
+  const container = isEdit ? state.containersById[containerId] : null;
+
+  document.getElementById('container-sheet-title').textContent = isEdit ? 'Editar recipiente' : 'Nuevo recipiente';
+  document.getElementById('c-name').value = container ? container.name : '';
+  document.getElementById('c-weight').value = container ? container.weight : '';
+  document.getElementById('c-notes').value = container ? (container.notes || '') : '';
+  document.getElementById('btn-delete-container').style.display = isEdit ? 'inline-flex' : 'none';
+
+  openSheet('sheet-container');
+}
+
+async function saveContainerFromSheet() {
+  const name = document.getElementById('c-name').value.trim();
+  const weight = parseFloat(document.getElementById('c-weight').value);
+  if (!name) { showToast('Ponele un nombre al recipiente.'); return; }
+  if (!weight || weight <= 0) { showToast('Ingresá el peso vacío (tara) en gramos.'); return; }
+
+  const container = {
+    id: state.editingContainerId || uid('container'),
+    name,
+    weight,
+    notes: document.getElementById('c-notes').value.trim()
+  };
+  await DB.put('containers', container);
+  await loadAllState();
+  closeSheet('sheet-container');
+  renderContainersTab();
+  showToast('Recipiente guardado.');
+}
+
+async function deleteContainerFromSheet() {
+  if (!state.editingContainerId) return;
+  if (!confirm('¿Eliminar este recipiente?')) return;
+  await DB.delete('containers', state.editingContainerId);
+  await loadAllState();
+  closeSheet('sheet-container');
+  renderContainersTab();
+  showToast('Recipiente eliminado.');
 }
 
 /* ---------------------------------------------------------
@@ -1396,8 +1507,10 @@ function switchFoodsSubview(sub) {
   state.foodsSubview = sub;
   document.getElementById('subtab-foods').classList.toggle('is-selected', sub === 'foods');
   document.getElementById('subtab-groups').classList.toggle('is-selected', sub === 'groups');
+  document.getElementById('subtab-containers').classList.toggle('is-selected', sub === 'containers');
   document.getElementById('foods-subview').style.display = sub === 'foods' ? 'block' : 'none';
   document.getElementById('groups-subview').style.display = sub === 'groups' ? 'block' : 'none';
+  document.getElementById('containers-subview').style.display = sub === 'containers' ? 'block' : 'none';
   document.getElementById('fab-add-food').style.display = sub === 'foods' ? 'flex' : 'none';
 }
 
@@ -1469,6 +1582,7 @@ function wireEvents() {
   // Alimentos tab
   document.getElementById('subtab-foods').addEventListener('click', () => switchFoodsSubview('foods'));
   document.getElementById('subtab-groups').addEventListener('click', () => switchFoodsSubview('groups'));
+  document.getElementById('subtab-containers').addEventListener('click', () => switchFoodsSubview('containers'));
   document.getElementById('food-search').addEventListener('input', (e) => { state.foodFilter.search = e.target.value; renderFoodsList(); });
   document.getElementById('food-sort').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-sort]');
@@ -1527,6 +1641,17 @@ function wireEvents() {
     state.groupSheetItems.splice(idx, 1);
     renderGroupItemsEditor();
   });
+
+  // Recipientes
+  document.getElementById('containers-list').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-action="edit-container"]');
+    if (row) openContainerSheet(row.dataset.id);
+  });
+  document.getElementById('btn-new-container').addEventListener('click', () => openContainerSheet(null));
+  document.getElementById('btn-save-container').addEventListener('click', saveContainerFromSheet);
+  document.getElementById('btn-delete-container').addEventListener('click', deleteContainerFromSheet);
+  document.getElementById('calc-container-select').addEventListener('change', updateContainerCalcResult);
+  document.getElementById('calc-gross-weight').addEventListener('input', updateContainerCalcResult);
 
   // Picker
   document.getElementById('picker-tab-foods').addEventListener('click', () => setPickerTab('foods'));
