@@ -1,10 +1,11 @@
-const CACHE_NAME = 'fitbee-cache-v2';
+const CACHE_NAME = 'fitbee-cache-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
   './css/styles.css',
   './js/db.js',
   './js/data-seed.js',
+  './js/calc.js',
   './js/suggest.js',
   './js/charts.js',
   './js/backup.js',

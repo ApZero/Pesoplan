@@ -22,7 +22,7 @@
 
   <header class="top-bar" id="top-bar">
     <div class="brand"><span class="brand-mark">Fit</span>Bee</div>
-    <div class="top-bar-sub" id="top-bar-sub"></div>
+    <button class="user-switch-btn" id="user-switch-btn">👤</button>
   </header>
 
   <main>
@@ -164,11 +164,42 @@
       </div>
 
       <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Calculadora de calorías</div>
+        <p class="small text-faint" style="margin:0 0 12px;">Estimación según tu sexo, edad, peso y actividad, ajustada a tu objetivo semanal. El resultado es un punto de partida — vos podés sobreescribir el límite diario arriba cuando quieras.</p>
+        <div class="field">
+          <label>Sexo</label>
+          <div class="chip-select" id="calc-sex">
+            <button type="button" class="chip" data-sex="male">Hombre</button>
+            <button type="button" class="chip" data-sex="female">Mujer</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Edad</label><div class="unit-suffix"><input type="number" id="calc-age" inputmode="numeric"><span class="suffix">años</span></div></div>
+          <div class="field"><label>Peso actual</label><div class="unit-suffix"><input type="number" id="calc-weight" inputmode="decimal" step="0.1"><span class="suffix">kg</span></div></div>
+        </div>
+        <div class="field">
+          <label>Nivel de actividad</label>
+          <select id="calc-activity"></select>
+        </div>
+        <div class="field">
+          <label>Objetivo semanal</label>
+          <div class="unit-suffix"><input type="number" id="calc-weekly-rate" inputmode="decimal" step="0.1"><span class="suffix">kg/sem</span></div>
+          <p class="small text-faint" style="margin:6px 0 0;">Negativo para bajar, positivo para subir, 0 para mantener. Un ritmo de -0.5 kg/semana es un objetivo moderado y sostenible.</p>
+        </div>
+        <button class="btn btn-olive btn-block" id="btn-run-calc">Calcular calorías sugeridas</button>
+        <div id="calc-result"></div>
+      </div>
+
+      <div class="card">
         <div class="eyebrow" style="margin-bottom:10px;">Respaldo</div>
+        <div class="settings-row">
+          <div class="label-block"><div class="t">Descargar automáticamente</div><div class="s">Un archivo .json a tu celular, cada día que abrís la app</div></div>
+          <input type="checkbox" id="set-auto-download" style="width:20px;height:20px;accent-color:var(--terracotta);">
+        </div>
         <div class="settings-row">
           <div class="label-block"><div class="t">Respaldo automático</div><div class="s" id="auto-backup-status">—</div></div>
         </div>
-        <p class="small text-faint" style="margin:2px 0 12px;">El respaldo automático se guarda <b>dentro de la app</b> (no en la carpeta de Descargas del celular) — no vas a ver una notificación de descarga ni un archivo nuevo, pero sí un aviso rápido en pantalla cuando se genera. Se restaura desde la lista de abajo si algo sale mal.<br><br>Para tener un archivo real que puedas guardar en tu Drive o enviarte por WhatsApp, usá <b>"Exportar ahora"</b>: eso sí descarga un .json a tu celular (normalmente a Descargas), igual que cualquier otro archivo.</p>
+        <p class="small text-faint" style="margin:2px 0 12px;">Con la descarga automática activada, cada día que abrís la app se guarda una copia local <b>y además se descarga un archivo .json</b> (normalmente a la carpeta Descargas de tu celular) sin que tengas que tocar nada. Si tu navegador bloquea la descarga automática la primera vez, puede pedirte que lo permitas para este sitio.<br><br>"Exportar ahora" descarga ese mismo archivo en el momento, cuando quieras.</p>
         <div class="btn-row">
           <button class="btn btn-primary btn-sm" id="btn-export-now">⬇ Exportar ahora</button>
           <button class="btn btn-subtle btn-sm" id="btn-import">⬆ Importar archivo</button>
@@ -370,6 +401,76 @@
   <div class="sheet-body" id="summary-sheet-body"></div>
 </div>
 
+<!-- ===================== SHEET: usuarios ===================== -->
+<div class="sheet" id="sheet-users">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3>Perfiles</h3>
+    <button class="sheet-close" data-close-sheet="sheet-users">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div id="users-sheet-list"></div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-ghost btn-block" id="btn-new-user">+ Nuevo perfil</button>
+  </div>
+</div>
+
+<!-- ===================== SHEET: perfil (crear/editar) ===================== -->
+<div class="sheet" id="sheet-user">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="user-sheet-title">Nuevo perfil</h3>
+    <button class="sheet-close" data-close-sheet="sheet-user">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="u-name" placeholder="Ej: María">
+    </div>
+    <div class="field">
+      <label>Ícono</label>
+      <div class="chip-select" id="u-emoji"></div>
+    </div>
+    <p class="small text-faint">Cada perfil tiene su propio plan, peso y objetivos. La lista de alimentos y los grupos se comparten entre todos.</p>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-user" style="flex:1;">Guardar perfil</button>
+      <button class="btn btn-danger" id="btn-delete-user" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: copiar comida ===================== -->
+<div class="sheet" id="sheet-copy-meal">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3>Copiar comida</h3>
+    <button class="sheet-close" data-close-sheet="sheet-copy-meal">✕</button>
+  </div>
+  <div class="sheet-body">
+    <p class="small text-faint" id="copy-source-label" style="margin-top:0;"></p>
+    <div class="field">
+      <label>Para</label>
+      <select id="copy-dest-user"></select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="copy-dest-date">
+      </div>
+      <div class="field">
+        <label>Comida</label>
+        <select id="copy-dest-meal"></select>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn btn-primary btn-block" id="btn-confirm-copy">Copiar</button>
+  </div>
+</div>
+
 <!-- ===================== SHEET: registro corporal ===================== -->
 <div class="sheet" id="sheet-body-log">
   <div class="sheet-handle"></div>
@@ -404,6 +505,7 @@
 
 <script src="js/db.js"></script>
 <script src="js/data-seed.js"></script>
+<script src="js/calc.js"></script>
 <script src="js/suggest.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/backup.js"></script>
