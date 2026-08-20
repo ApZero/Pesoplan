@@ -75,6 +75,7 @@
       <div class="chip-select" style="margin-bottom:14px;">
         <button class="chip is-selected" data-subview="foods" id="subtab-foods">Alimentos</button>
         <button class="chip" data-subview="groups" id="subtab-groups">Grupos</button>
+        <button class="chip" data-subview="containers" id="subtab-containers">Recipientes</button>
       </div>
 
       <div id="foods-subview">
@@ -94,6 +95,26 @@
       <div id="groups-subview" style="display:none;">
         <div id="groups-list"></div>
         <button class="btn btn-ghost btn-block" id="btn-new-group" style="margin-top:6px;">+ Nuevo grupo</button>
+      </div>
+
+      <div id="containers-subview" style="display:none;">
+        <div class="card">
+          <div class="eyebrow" style="margin-bottom:10px;">Pesar por diferencia</div>
+          <p class="small text-faint" style="margin:0 0 12px;">Elegí el recipiente, poné en la balanza el recipiente con la comida adentro, y anotá ese peso bruto acá.</p>
+          <div class="field">
+            <label>Recipiente</label>
+            <select id="calc-container-select"></select>
+          </div>
+          <div class="field">
+            <label>Peso bruto (recipiente + comida)</label>
+            <div class="unit-suffix"><input type="number" id="calc-gross-weight" inputmode="decimal" step="1"><span class="suffix">g</span></div>
+          </div>
+          <p class="num-md" id="container-calc-result" style="margin:4px 0 0;"></p>
+        </div>
+
+        <div class="section-title" style="margin-top:6px;">Tus recipientes</div>
+        <div id="containers-list"></div>
+        <button class="btn btn-ghost btn-block" id="btn-new-container" style="margin-top:6px;">+ Nuevo recipiente</button>
       </div>
 
     </section>
@@ -336,6 +357,35 @@
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-save-group" style="flex:1;">Guardar grupo</button>
       <button class="btn btn-danger" id="btn-delete-group" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: recipiente (crear/editar) ===================== -->
+<div class="sheet" id="sheet-container">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="container-sheet-title">Nuevo recipiente</h3>
+    <button class="sheet-close" data-close-sheet="sheet-container">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="c-name" placeholder="Ej: Tupper grande rectangular">
+    </div>
+    <div class="field">
+      <label>Peso vacío (tara)</label>
+      <div class="unit-suffix"><input type="number" id="c-weight" inputmode="decimal" step="1"><span class="suffix">g</span></div>
+    </div>
+    <div class="field">
+      <label>Notas <span class="hint text-faint">opcional</span></label>
+      <textarea id="c-notes" placeholder="Marca, tamaño, dónde está…"></textarea>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-container" style="flex:1;">Guardar recipiente</button>
+      <button class="btn btn-danger" id="btn-delete-container" style="display:none;">Eliminar</button>
     </div>
   </div>
 </div>
