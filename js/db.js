@@ -3,8 +3,8 @@
    ========================================================= */
 
 const DB_NAME = 'pesoplan-db';
-const DB_VERSION = 1;
-const STORES = ['foods', 'groups', 'days', 'body', 'settings', 'backups'];
+const DB_VERSION = 2;
+const STORES = ['foods', 'groups', 'days', 'body', 'settings', 'backups', 'users'];
 
 let _dbPromise = null;
 
@@ -21,16 +21,19 @@ function openDB() {
         db.createObjectStore('groups', { keyPath: 'id' });
       }
       if (!db.objectStoreNames.contains('days')) {
-        db.createObjectStore('days', { keyPath: 'date' }); // date = 'YYYY-MM-DD'
+        db.createObjectStore('days', { keyPath: 'date' }); // date = 'YYYY-MM-DD', ver 2+: { date, users: { [userId]: {meals, note} } }
       }
       if (!db.objectStoreNames.contains('body')) {
-        db.createObjectStore('body', { keyPath: 'date' });
+        db.createObjectStore('body', { keyPath: 'date' }); // ver 2+: { date, users: { [userId]: {weight, bodyFat} } }
       }
       if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' });
+        db.createObjectStore('settings', { keyPath: 'key' }); // key = userId, or 'app' for app-level settings
       }
       if (!db.objectStoreNames.contains('backups')) {
         db.createObjectStore('backups', { keyPath: 'date' });
+      }
+      if (!db.objectStoreNames.contains('users')) {
+        db.createObjectStore('users', { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);

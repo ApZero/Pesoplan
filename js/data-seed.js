@@ -27,6 +27,8 @@ const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
 const UNIT_LABELS = { g: 'g', ml: 'ml', unidad: 'unid.' };
 
+const USER_EMOJIS = ['🐝', '🦁', '🐻', '🦊', '🐼', '🐸', '🐢', '🦉', '🐨', '🦋', '🐶', '🐱'];
+
 /**
  * Alimentos iniciales. baseAmount es la cantidad de referencia
  * (100 para g/ml, 1 para unidad) sobre la que se expresan los valores.
@@ -106,7 +108,12 @@ const SEED_FOODS = [
   }
 ];
 
-const SEED_SETTINGS = {
+/**
+ * Ajustes por usuario: cada perfil tiene su propio presupuesto, objetivos
+ * de comida, altura, meta de peso y datos para la calculadora de calorías.
+ * Los alimentos y grupos son compartidos entre todos los usuarios.
+ */
+const SEED_USER_SETTINGS = {
   dailyLimit: 1600,
   mealTargets: {
     desayuno: 350,
@@ -117,8 +124,20 @@ const SEED_SETTINGS = {
   },
   heightCm: null,
   goalWeightKg: null,
-  units: 'metric',
-  onboarded: false,
+  sex: null,
+  age: null,
+  calcWeightKg: null,
+  activityLevel: 'sedentario',
+  weeklyRateKg: -0.5
+};
+
+/**
+ * Ajustes a nivel app (no por usuario): quién es el usuario activo,
+ * estado del respaldo automático y si se onboardeó alguna vez.
+ */
+const SEED_APP_SETTINGS = {
+  currentUserId: null,
   lastAutoBackupDate: null,
-  themeReady: true
+  autoDownloadBackup: true,
+  onboarded: false
 };
