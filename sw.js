@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fitbee-cache-v4';
+const CACHE_NAME = 'fitbee-cache-v5';
 const CORE_ASSETS = [
   './',
   './index.html',

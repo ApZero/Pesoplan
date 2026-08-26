@@ -162,6 +162,18 @@
       <div class="section-title mt-0">Ajustes</div>
 
       <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Perfiles</div>
+        <div id="users-settings-list"></div>
+        <button class="btn btn-ghost btn-block" id="btn-new-user" style="margin-top:6px;">+ Nuevo perfil</button>
+      </div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:10px;">Categorías de alimentos</div>
+        <div id="categories-settings-list"></div>
+        <button class="btn btn-ghost btn-block" id="btn-new-category" style="margin-top:6px;">+ Nueva categoría</button>
+      </div>
+
+      <div class="card">
         <div class="eyebrow" style="margin-bottom:10px;">Meta y medidas</div>
         <div class="settings-row">
           <div class="label-block"><div class="t">Peso objetivo</div><div class="s">Tu meta a alcanzar</div></div>
@@ -390,6 +402,61 @@
   </div>
 </div>
 
+<!-- ===================== SHEET: categoría (crear/editar) ===================== -->
+<div class="sheet" id="sheet-category">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="category-sheet-title">Nueva categoría</h3>
+    <button class="sheet-close" data-close-sheet="sheet-category">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="cat-label" placeholder="Ej: Legumbres">
+    </div>
+    <div class="field">
+      <label>Emoji</label>
+      <input type="text" id="cat-emoji" placeholder="🫘" maxlength="4" style="max-width:100px; text-align:center; font-size:20px;">
+      <p class="small text-faint" style="margin:6px 0 0;">Pegá o escribí un emoji desde el teclado de tu celular.</p>
+    </div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-category" style="flex:1;">Guardar categoría</button>
+      <button class="btn btn-danger" id="btn-delete-category" style="display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHEET: editar grupo del día ===================== -->
+<div class="sheet" id="sheet-day-group">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="day-group-sheet-title">Grupo</h3>
+    <button class="sheet-close" data-close-sheet="sheet-day-group">✕</button>
+  </div>
+  <div class="sheet-body">
+    <p class="small text-faint" style="margin-top:0;">Esto solo ajusta esta comida de hoy — el grupo original en Alimentos no cambia.</p>
+    <div class="field-row" style="align-items:end;">
+      <div class="field" style="flex:1;">
+        <label>Multiplicar todo por</label>
+        <input type="number" id="dg-multiplier" value="1" step="0.25" min="0.1">
+      </div>
+      <button class="btn btn-olive btn-sm" id="btn-apply-multiplier" style="margin-bottom:14px;">Aplicar</button>
+    </div>
+    <hr class="divider" style="margin:4px 0 14px;">
+    <label>Alimentos de este grupo</label>
+    <div id="dg-items-list"></div>
+    <div class="text-center num-md" id="dg-kcal-total" style="margin-top:10px; color:var(--terracotta-dark);"></div>
+  </div>
+  <div class="sheet-foot">
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save-day-group" style="flex:1;">Guardar cambios</button>
+      <button class="btn btn-danger" id="btn-remove-day-group">Quitar del día</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== SHEET: agregar a comida (picker) ===================== -->
 <div class="sheet" id="sheet-picker">
   <div class="sheet-handle"></div>
@@ -449,21 +516,6 @@
     <button class="sheet-close" data-close-sheet="sheet-day-summary">✕</button>
   </div>
   <div class="sheet-body" id="summary-sheet-body"></div>
-</div>
-
-<!-- ===================== SHEET: usuarios ===================== -->
-<div class="sheet" id="sheet-users">
-  <div class="sheet-handle"></div>
-  <div class="sheet-head">
-    <h3>Perfiles</h3>
-    <button class="sheet-close" data-close-sheet="sheet-users">✕</button>
-  </div>
-  <div class="sheet-body">
-    <div id="users-sheet-list"></div>
-  </div>
-  <div class="sheet-foot">
-    <button class="btn btn-ghost btn-block" id="btn-new-user">+ Nuevo perfil</button>
-  </div>
 </div>
 
 <!-- ===================== SHEET: perfil (crear/editar) ===================== -->
