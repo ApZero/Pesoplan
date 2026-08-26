@@ -62,9 +62,21 @@ function suggestForMeal(allFoods, mealType, targetKcal) {
   return items;
 }
 
+/**
+ * Suma nutrientes de una lista de items de una comida. Cada item puede ser
+ * un alimento individual {foodId, amount} o una instancia de grupo
+ * {type:'group', items:[...]} — en ese caso suma recursivamente sus
+ * propios items (que siempre son alimentos individuales).
+ */
 function sumItemsNutrition(items, foodsById) {
   const totals = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   items.forEach((it) => {
+    if (it.type === 'group') {
+      const sub = sumItemsNutrition(it.items, foodsById);
+      totals.kcal += sub.kcal; totals.protein += sub.protein; totals.carbs += sub.carbs;
+      totals.fat += sub.fat; totals.fiber += sub.fiber;
+      return;
+    }
     const food = foodsById[it.foodId];
     if (!food) return;
     const ratio = it.amount / food.baseAmount;

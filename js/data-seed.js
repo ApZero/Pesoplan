@@ -12,7 +12,13 @@ const MEAL_TYPES = [
 
 const MEAL_LABELS = Object.fromEntries(MEAL_TYPES.map((m) => [m.id, m.label]));
 
-const CATEGORIES = [
+/**
+ * Categorías iniciales de alimentos. Se cargan una sola vez a la base
+ * (store 'categories'); desde ahí son editables por el usuario en
+ * Ajustes, así que en tiempo de ejecución hay que usar state.categories /
+ * state.categoriesById en vez de esta constante.
+ */
+const SEED_CATEGORIES = [
   { id: 'fruta', label: 'Fruta', color: '#D6A24A', emoji: '🍎' },
   { id: 'verdura', label: 'Verdura', color: '#6B7353', emoji: '🥦' },
   { id: 'fruto_seco', label: 'Fruto seco', color: '#B5822F', emoji: '🥜' },
@@ -23,7 +29,8 @@ const CATEGORIES = [
   { id: 'otro', label: 'Otro', color: '#8C8474', emoji: '🍽️' }
 ];
 
-const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+/** Paleta para asignar color automáticamente a categorías nuevas. */
+const CATEGORY_COLOR_PALETTE = ['#C46A3F', '#6B7353', '#D6A24A', '#9C4A3A', '#8C8474', '#B5822F', '#A6512C', '#545B40'];
 
 const UNIT_LABELS = { g: 'g', ml: 'ml', unidad: 'unid.' };
 

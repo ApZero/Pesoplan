@@ -12,6 +12,9 @@ const state = {
   groupsById: {},
   containers: [],
   containersById: {},
+  categories: [],
+  categoriesById: {},
+  editingCategoryId: null,
   users: [],
   usersById: {},
   currentUserId: null,
@@ -35,6 +38,8 @@ const state = {
   editingUserId: null,
   userSheetEmoji: USER_EMOJIS[0],
   copyContext: null, // {sourceMealType, sourceDate, sourceUserId}
+  dayGroupContext: null, // {mealType, itemIndex}
+  dayGroupItems: [],
   fMealTypesSelected: []
 };
 
@@ -102,6 +107,7 @@ async function init() {
   }
 
   await ensureFoodsSeed();
+  await ensureCategoriesSeed();
   await migrateToMultiUserIfNeeded();
   await loadAllState();
   const backupResult = await runAutoBackupIfNeeded(state.appSettings);
@@ -132,6 +138,13 @@ async function ensureFoodsSeed() {
   const foodCount = await DB.count('foods');
   if (foodCount === 0) {
     await DB.putMany('foods', SEED_FOODS);
+  }
+}
+
+async function ensureCategoriesSeed() {
+  const catCount = await DB.count('categories');
+  if (catCount === 0) {
+    await DB.putMany('categories', SEED_CATEGORIES);
   }
 }
 
@@ -184,13 +197,14 @@ async function migrateToMultiUserIfNeeded() {
 }
 
 async function loadAllState() {
-  const [foods, groups, users, appRow, bodyAll, containers] = await Promise.all([
+  const [foods, groups, users, appRow, bodyAll, containers, categories] = await Promise.all([
     DB.getAll('foods'),
     DB.getAll('groups'),
     DB.getAll('users'),
     DB.get('settings', 'app'),
     DB.getAll('body'),
-    DB.getAll('containers')
+    DB.getAll('containers'),
+    DB.getAll('categories')
   ]);
   state.foods = foods.sort((a, b) => a.name.localeCompare(b.name, 'es'));
   state.foodsById = Object.fromEntries(foods.map((f) => [f.id, f]));
@@ -198,6 +212,8 @@ async function loadAllState() {
   state.groupsById = Object.fromEntries(groups.map((g) => [g.id, g]));
   state.containers = containers.sort((a, b) => a.name.localeCompare(b.name, 'es'));
   state.containersById = Object.fromEntries(containers.map((c) => [c.id, c]));
+  state.categories = categories.sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  state.categoriesById = Object.fromEntries(categories.map((c) => [c.id, c]));
   state.users = users.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   state.usersById = Object.fromEntries(users.map((u) => [u.id, u]));
 
@@ -237,8 +253,7 @@ function refreshAutoBackupStatus() {
 }
 
 function populateStaticSelectors() {
-  const catSelect = document.getElementById('f-category');
-  catSelect.innerHTML = CATEGORIES.map((c) => `<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('');
+  populateCategorySelect();
 
   const mtWrap = document.getElementById('f-mealtypes');
   mtWrap.innerHTML = MEAL_TYPES.map((m) => `<button type="button" class="chip" data-mt="${m.id}">${m.label}</button>`).join('');
@@ -273,6 +288,13 @@ function populateStaticSelectors() {
   }
 }
 
+function populateCategorySelect() {
+  const catSelect = document.getElementById('f-category');
+  const prev = catSelect.value;
+  catSelect.innerHTML = state.categories.map((c) => `<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('');
+  if (state.categoriesById[prev]) catSelect.value = prev;
+}
+
 /* ---------------------------------------------------------
    Iconos (inline SVG mínimos)
    --------------------------------------------------------- */
@@ -295,10 +317,24 @@ function renderUserSwitcher() {
   if (!btn) return;
   const u = state.usersById[state.currentUserId];
   btn.textContent = u ? `${u.emoji} ${u.name}` : '👤';
+  btn.title = state.users.length > 1 ? 'Tocá para cambiar de perfil' : '';
 }
 
-function renderUsersList() {
-  const wrap = document.getElementById('users-sheet-list');
+/** Cicla al siguiente perfil en la lista (orden de creación), sin abrir ningún sheet. */
+async function cycleToNextUser() {
+  if (state.users.length <= 1) {
+    if (state.users.length === 0) return;
+    showToast('Solo tenés un perfil — creá otro desde Ajustes.');
+    return;
+  }
+  const idx = state.users.findIndex((u) => u.id === state.currentUserId);
+  const next = state.users[(idx + 1) % state.users.length];
+  await switchUser(next.id);
+}
+
+function renderUsersSettingsList() {
+  const wrap = document.getElementById('users-settings-list');
+  if (!wrap) return;
   wrap.innerHTML = state.users.map((u) => `
     <div class="user-row ${u.id === state.currentUserId ? 'is-current' : ''}">
       <button class="user-row-main" data-action="switch-user" data-id="${u.id}">
@@ -309,11 +345,6 @@ function renderUsersList() {
         <svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
       </button>
     </div>`).join('');
-}
-
-function openUsersSheet() {
-  renderUsersList();
-  openSheet('sheet-users');
 }
 
 function openUserSheet(userId) {
@@ -357,7 +388,7 @@ async function saveUserFromSheet() {
   } else {
     await loadAllState();
     renderUserSwitcher();
-    renderUsersList();
+    renderUsersSettingsList();
     renderSettingsTab();
     showToast('Perfil actualizado.');
   }
@@ -388,7 +419,7 @@ async function deleteUserFromSheet() {
   }
 
   renderUserSwitcher();
-  renderUsersList();
+  renderUsersSettingsList();
   renderToday();
   renderProgressTab();
   renderSettingsTab();
@@ -407,17 +438,17 @@ async function cleanupUserDataFromNestedStore(storeName, userId) {
 }
 
 async function switchUser(userId) {
-  if (userId === state.currentUserId) { closeSheet('sheet-users'); return; }
+  if (userId === state.currentUserId) return;
   state.currentUserId = userId;
   state.appSettings.currentUserId = userId;
   await saveAppSettings();
   await loadAllState();
   state.currentDay = await loadDayRecord(state.currentDateStr);
   renderUserSwitcher();
+  renderUsersSettingsList();
   renderToday();
   renderProgressTab();
   renderSettingsTab();
-  closeSheet('sheet-users');
   showToast(`Ahora estás viendo a ${state.usersById[userId].name}.`);
 }
 
@@ -510,6 +541,15 @@ function renderMealCard(slice, mealDef) {
   const totals = meal.skip ? { kcal: 0 } : sumItemsNutrition(meal.items, state.foodsById);
 
   const rows = meal.items.map((item, idx) => {
+    if (item.type === 'group') {
+      const t = sumItemsNutrition(item.items, state.foodsById);
+      return `
+      <div class="food-row" data-mt="${mealDef.id}" data-idx="${idx}" data-action="edit-group-item">
+        <div class="fname">🍱 ${escapeHtml(item.name)}</div>
+        <div class="famt">${item.items.length} alim.</div>
+        <div class="fkcal">${fmt(t.kcal)}</div>
+      </div>`;
+    }
     const food = state.foodsById[item.foodId];
     if (!food) return '';
     const kc = kcalForAmount(food, item.amount);
@@ -598,7 +638,7 @@ async function confirmCopyMeal() {
     if (!confirm('Ya hay alimentos en el destino. ¿Reemplazarlos?')) return;
   }
 
-  destSlice.meals[destMealType] = { skip: false, items: sourceMeal.items.map((it) => ({ ...it })) };
+  destSlice.meals[destMealType] = { skip: false, items: sourceMeal.items.map(cloneMealItem) };
   await DB.put('days', destRecord);
   if (sameRecord) state.currentDay = destRecord;
 
@@ -703,6 +743,15 @@ function renderDaySummaryFoodsView(slice) {
     const meal = slice.meals[m.id];
     const t = sumItemsNutrition(meal.items, state.foodsById);
     const rows = meal.items.map((it) => {
+      if (it.type === 'group') {
+        const gt = sumItemsNutrition(it.items, state.foodsById);
+        const subRows = it.items.map((sub) => {
+          const food = state.foodsById[sub.foodId];
+          if (!food) return '';
+          return `<div class="compact-food-row compact-sub-row"><span class="cf-name">${escapeHtml(food.name)}</span><span class="cf-amt">${fmt(sub.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, sub.amount))}</span></div>`;
+        }).join('');
+        return `<div class="compact-food-row compact-group-row"><span class="cf-name">🍱 ${escapeHtml(it.name)}</span><span class="cf-kcal">${fmt(gt.kcal)}</span></div>${subRows}`;
+      }
       const food = state.foodsById[it.foodId];
       if (!food) return '';
       return `<div class="compact-food-row"><span class="cf-name">${escapeHtml(food.name)}</span><span class="cf-amt">${fmt(it.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, it.amount))}</span></div>`;
@@ -721,6 +770,14 @@ function gatherDayItems(slice) {
     const meal = slice.meals[m.id];
     if (meal.skip) return;
     meal.items.forEach((it) => {
+      if (it.type === 'group') {
+        it.items.forEach((sub) => {
+          const food = state.foodsById[sub.foodId];
+          if (!food) return;
+          allItems.push({ name: food.name, mealLabel: `${m.label} · ${it.name}`, amount: sub.amount, unit: food.unit, kcal: kcalForAmount(food, sub.amount) });
+        });
+        return;
+      }
       const food = state.foodsById[it.foodId];
       if (!food) return;
       allItems.push({ name: food.name, mealLabel: m.label, amount: it.amount, unit: food.unit, kcal: kcalForAmount(food, it.amount) });
@@ -831,7 +888,7 @@ function renderPickerList() {
       return;
     }
     list.innerHTML = items.map((f) => {
-      const cat = CATEGORY_MAP[f.category] || CATEGORY_MAP.otro;
+      const cat = state.categoriesById[f.category] || state.categoriesById.otro || { emoji: '🍽️', color: '#8C8474' };
       return `
       <div class="food-list-item" data-action="pick-food" data-id="${f.id}">
         <div class="food-swatch" style="background:${cat.color}22;">${cat.emoji}</div>
@@ -863,17 +920,116 @@ function renderPickerList() {
   }
 }
 
+/**
+ * Clona un item de comida en profundidad. Los items de tipo 'group'
+ * llevan su propia copia de ingredientes — clonarla evita que dos
+ * instancias (por ejemplo tras copiar una comida) compartan el mismo
+ * array y se editen entre sí sin querer.
+ */
+function cloneMealItem(item) {
+  if (item.type === 'group') {
+    return { ...item, instanceId: uid('gi'), items: item.items.map((it) => ({ ...it })) };
+  }
+  return { ...item };
+}
+
 async function addGroupToMeal(groupId) {
   const group = state.groupsById[groupId];
   if (!group) return;
   const { mealType } = state.pickerContext;
   const meal = currentMeals()[mealType];
-  group.items.forEach((it) => meal.items.push({ foodId: it.foodId, amount: it.amount }));
+  meal.items.push({
+    type: 'group',
+    instanceId: uid('gi'),
+    groupId: group.id,
+    name: group.name,
+    items: group.items.map((it) => ({ ...it }))
+  });
   meal.skip = false;
   await saveCurrentDay();
   closeSheet('sheet-picker');
   renderToday();
-  showToast(`"${group.name}" agregado.`);
+  showToast(`"${group.name}" agregado como grupo.`);
+}
+
+/* ---------------------------------------------------------
+   Editar una instancia de grupo dentro de un día
+   (no afecta la plantilla original del grupo)
+   --------------------------------------------------------- */
+
+function openDayGroupSheet(mealType, itemIndex) {
+  const item = currentMeals()[mealType].items[itemIndex];
+  if (!item || item.type !== 'group') return;
+
+  state.dayGroupContext = { mealType, itemIndex };
+  state.dayGroupItems = item.items.map((it) => ({ ...it }));
+
+  document.getElementById('day-group-sheet-title').textContent = item.name;
+  document.getElementById('dg-multiplier').value = 1;
+  renderDayGroupItemsEditor();
+  openSheet('sheet-day-group');
+}
+
+function renderDayGroupItemsEditor() {
+  const wrap = document.getElementById('dg-items-list');
+  wrap.innerHTML = state.dayGroupItems.map((it, idx) => {
+    const food = state.foodsById[it.foodId];
+    if (!food) return '';
+    return `
+    <div class="field-row" style="align-items:end; margin-bottom:8px;">
+      <div class="field" style="flex:1; margin-bottom:0;">
+        <label class="small" style="margin-bottom:4px;">${escapeHtml(food.name)}</label>
+        <div class="unit-suffix"><input type="number" data-dg-idx="${idx}" value="${fmt(it.amount)}" step="${stepForUnit(food.unit)}"><span class="suffix">${UNIT_LABELS[food.unit]}</span></div>
+      </div>
+      <button class="mini-btn" data-dg-remove="${idx}" style="margin-bottom:1px;">✕</button>
+    </div>`;
+  }).join('');
+  updateDayGroupKcalTotal();
+}
+
+function updateDayGroupKcalTotal() {
+  const t = sumItemsNutrition(state.dayGroupItems, state.foodsById);
+  document.getElementById('dg-kcal-total').textContent = `${fmt(t.kcal)} kcal en total`;
+}
+
+function applyDayGroupMultiplier() {
+  const factor = parseFloat(document.getElementById('dg-multiplier').value);
+  if (!factor || factor <= 0) { showToast('Ingresá un multiplicador válido.'); return; }
+  state.dayGroupItems.forEach((it) => {
+    const food = state.foodsById[it.foodId];
+    const step = food ? stepForUnit(food.unit) : 1;
+    it.amount = Math.max(step, Math.round((it.amount * factor) / step) * step);
+  });
+  document.getElementById('dg-multiplier').value = 1;
+  renderDayGroupItemsEditor();
+}
+
+async function saveDayGroupFromSheet() {
+  const ctx = state.dayGroupContext;
+  if (!ctx) return;
+  if (state.dayGroupItems.length === 0) { showToast('El grupo quedó sin alimentos — usá "Quitar del día" si querés eliminarlo.'); return; }
+
+  const meal = currentMeals()[ctx.mealType];
+  const item = meal.items[ctx.itemIndex];
+  if (!item || item.type !== 'group') return;
+  item.items = state.dayGroupItems.map((it) => ({ ...it }));
+
+  await saveCurrentDay();
+  closeSheet('sheet-day-group');
+  renderToday();
+  showToast('Grupo actualizado.');
+}
+
+async function removeDayGroupFromMeal() {
+  const ctx = state.dayGroupContext;
+  if (!ctx) return;
+  if (!confirm('¿Quitar este grupo de la comida?')) return;
+
+  const meal = currentMeals()[ctx.mealType];
+  meal.items.splice(ctx.itemIndex, 1);
+  await saveCurrentDay();
+  closeSheet('sheet-day-group');
+  renderToday();
 }
 
 /* ---------------------------------------------------------
@@ -885,7 +1041,7 @@ function renderCategoryFilterChips() {
   const chips = [
     { id: 'all', label: 'Todos' },
     { id: 'favorites', label: '★ Favoritos' },
-    ...CATEGORIES.map((c) => ({ id: c.id, label: `${c.emoji} ${c.label}` }))
+    ...state.categories.map((c) => ({ id: c.id, label: `${c.emoji} ${c.label}` }))
   ];
   wrap.innerHTML = chips.map((c) => `<button class="chip ${state.foodFilter.category === c.id ? 'is-selected' : ''}" data-cat="${c.id}">${c.label}</button>`).join('');
 }
@@ -908,7 +1064,7 @@ function renderFoodsList() {
     return;
   }
   list.innerHTML = items.map((f) => {
-    const catDef = CATEGORY_MAP[f.category] || CATEGORY_MAP.otro;
+    const catDef = state.categoriesById[f.category] || state.categoriesById.otro || { emoji: '🍽️', color: '#8C8474' };
     return `
     <div class="food-list-item" data-action="edit-food" data-id="${f.id}">
       <div class="food-swatch" style="background:${catDef.color}22;">${catDef.emoji}</div>
@@ -960,6 +1116,7 @@ function openFoodSheet(foodId) {
   const food = isEdit ? state.foodsById[foodId] : null;
 
   document.getElementById('food-sheet-title').textContent = isEdit ? 'Editar alimento' : 'Nuevo alimento';
+  populateCategorySelect();
   document.getElementById('f-name').value = food ? food.name : '';
   document.getElementById('f-category').value = food ? food.category : 'otro';
   document.getElementById('f-unit').value = food ? food.unit : 'g';
@@ -1219,6 +1376,83 @@ async function deleteContainerFromSheet() {
 }
 
 /* ---------------------------------------------------------
+   CATEGORÍAS de alimentos (editables desde Ajustes)
+   --------------------------------------------------------- */
+
+function renderCategoriesSettingsList() {
+  const wrap = document.getElementById('categories-settings-list');
+  if (!wrap) return;
+  wrap.innerHTML = state.categories.map((c) => `
+    <div class="user-row">
+      <button class="user-row-main" data-action="edit-category" data-id="${c.id}">
+        <span class="user-emoji">${c.emoji}</span>
+        <span class="user-name">${escapeHtml(c.label)}</span>
+      </button>
+    </div>`).join('');
+}
+
+function openCategorySheet(categoryId) {
+  state.editingCategoryId = categoryId || null;
+  const isEdit = !!categoryId;
+  const cat = isEdit ? state.categoriesById[categoryId] : null;
+
+  document.getElementById('category-sheet-title').textContent = isEdit ? 'Editar categoría' : 'Nueva categoría';
+  document.getElementById('cat-label').value = cat ? cat.label : '';
+  document.getElementById('cat-emoji').value = cat ? cat.emoji : '';
+
+  const isProtected = isEdit && categoryId === 'otro';
+  document.getElementById('btn-delete-category').style.display = (isEdit && !isProtected) ? 'inline-flex' : 'none';
+
+  openSheet('sheet-category');
+}
+
+async function saveCategoryFromSheet() {
+  const label = document.getElementById('cat-label').value.trim();
+  const emoji = document.getElementById('cat-emoji').value.trim() || '🍽️';
+  if (!label) { showToast('Ponele un nombre a la categoría.'); return; }
+
+  const isNew = !state.editingCategoryId;
+  const color = isNew
+    ? CATEGORY_COLOR_PALETTE[state.categories.length % CATEGORY_COLOR_PALETTE.length]
+    : state.categoriesById[state.editingCategoryId].color;
+
+  const category = {
+    id: state.editingCategoryId || uid('cat'),
+    label,
+    emoji,
+    color
+  };
+  await DB.put('categories', category);
+  await loadAllState();
+  closeSheet('sheet-category');
+  populateCategorySelect();
+  renderCategoriesSettingsList();
+  renderFoodsList();
+  renderCategoryFilterChips();
+  showToast('Categoría guardada.');
+}
+
+async function deleteCategoryFromSheet() {
+  if (!state.editingCategoryId) return;
+  if (state.editingCategoryId === 'otro') { showToast('Esta categoría no se puede eliminar.'); return; }
+  const inUse = state.foods.some((f) => f.category === state.editingCategoryId);
+  if (inUse) {
+    showToast('Hay alimentos usando esta categoría — cambialos a otra categoría primero.');
+    return;
+  }
+  if (!confirm('¿Eliminar esta categoría?')) return;
+  await DB.delete('categories', state.editingCategoryId);
+  if (state.foodFilter.category === state.editingCategoryId) state.foodFilter.category = 'all';
+  await loadAllState();
+  closeSheet('sheet-category');
+  populateCategorySelect();
+  renderCategoriesSettingsList();
+  renderFoodsList();
+  renderCategoryFilterChips();
+  showToast('Categoría eliminada.');
+}
+
+/* ---------------------------------------------------------
    PROGRESO
    --------------------------------------------------------- */
 
@@ -1365,6 +1599,9 @@ async function deleteBodyLogFromSheet() {
    --------------------------------------------------------- */
 
 function renderSettingsTab() {
+  renderUsersSettingsList();
+  renderCategoriesSettingsList();
+
   document.getElementById('set-goal-weight').value = state.settings.goalWeightKg || '';
   document.getElementById('set-height').value = state.settings.heightCm || '';
   document.getElementById('set-daily-limit').value = state.settings.dailyLimit || '';
@@ -1561,12 +1798,15 @@ function wireEvents() {
       const idx = parseInt(actionEl.dataset.idx, 10);
       const item = currentMeals()[mt].items[idx];
       openAmountSheet({ mode: 'edit', foodId: item.foodId, mealType: mt, itemIndex: idx, currentAmount: item.amount });
+    } else if (action === 'edit-group-item') {
+      const idx = parseInt(actionEl.dataset.idx, 10);
+      openDayGroupSheet(mt, idx);
     }
   });
 
   // Usuarios
-  document.getElementById('user-switch-btn').addEventListener('click', openUsersSheet);
-  document.getElementById('users-sheet-list').addEventListener('click', (e) => {
+  document.getElementById('user-switch-btn').addEventListener('click', cycleToNextUser);
+  document.getElementById('users-settings-list').addEventListener('click', (e) => {
     const switchBtn = e.target.closest('[data-action="switch-user"]');
     if (switchBtn) { switchUser(switchBtn.dataset.id); return; }
     const editBtn = e.target.closest('[data-action="edit-user"]');
@@ -1578,6 +1818,24 @@ function wireEvents() {
 
   // Copiar comida
   document.getElementById('btn-confirm-copy').addEventListener('click', confirmCopyMeal);
+
+  // Editar grupo del día
+  document.getElementById('dg-items-list').addEventListener('input', (e) => {
+    const idx = parseInt(e.target.dataset.dgIdx, 10);
+    if (isNaN(idx)) return;
+    state.dayGroupItems[idx].amount = parseFloat(e.target.value) || 0;
+    updateDayGroupKcalTotal();
+  });
+  document.getElementById('dg-items-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-dg-remove]');
+    if (!btn) return;
+    const idx = parseInt(btn.dataset.dgRemove, 10);
+    state.dayGroupItems.splice(idx, 1);
+    renderDayGroupItemsEditor();
+  });
+  document.getElementById('btn-apply-multiplier').addEventListener('click', applyDayGroupMultiplier);
+  document.getElementById('btn-save-day-group').addEventListener('click', saveDayGroupFromSheet);
+  document.getElementById('btn-remove-day-group').addEventListener('click', removeDayGroupFromMeal);
 
   // Alimentos tab
   document.getElementById('subtab-foods').addEventListener('click', () => switchFoodsSubview('foods'));
@@ -1652,6 +1910,15 @@ function wireEvents() {
   document.getElementById('btn-delete-container').addEventListener('click', deleteContainerFromSheet);
   document.getElementById('calc-container-select').addEventListener('change', updateContainerCalcResult);
   document.getElementById('calc-gross-weight').addEventListener('input', updateContainerCalcResult);
+
+  // Categorías
+  document.getElementById('categories-settings-list').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-action="edit-category"]');
+    if (row) openCategorySheet(row.dataset.id);
+  });
+  document.getElementById('btn-new-category').addEventListener('click', () => openCategorySheet(null));
+  document.getElementById('btn-save-category').addEventListener('click', saveCategoryFromSheet);
+  document.getElementById('btn-delete-category').addEventListener('click', deleteCategoryFromSheet);
 
   // Picker
   document.getElementById('picker-tab-foods').addEventListener('click', () => setPickerTab('foods'));
