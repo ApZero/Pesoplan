@@ -511,6 +511,10 @@ textarea { resize: vertical; min-height: 60px; }
 .compact-food-row .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compact-food-row .cf-amt { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); flex-shrink: 0; }
 .compact-food-row .cf-kcal { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--terracotta-dark); width: 46px; text-align: right; flex-shrink: 0; }
+.compact-food-row.compact-group-row { font-weight: 700; }
+.compact-food-row.compact-group-row .cf-kcal { color: var(--olive-dark); }
+.compact-food-row.compact-sub-row { padding-left: 16px; opacity: 0.72; font-size: 12px; }
+.compact-food-row.compact-sub-row .cf-kcal { font-size: 11px; color: var(--ink-soft); }
 
 /* ---------- Usuarios ---------- */
 
