@@ -167,6 +167,18 @@ function drawProgressChart(canvas, entries, opts = {}) {
     ctx.fill();
   });
 
+  // marcadores de inicio de período: mismo tamaño, encima del punto de peso
+  if (opts.periodDates && opts.periodDates.size) {
+    ctx.fillStyle = '#DC3545';
+    entries.forEach((e) => {
+      if (!opts.periodDates.has(e.date)) return;
+      const t = Math.round((strToDate(e.date).getTime() - firstTime) / 86400000);
+      ctx.beginPath();
+      ctx.arc(xForT(t), yForV(e.value), 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
   // proyección punteada
   if (projection) {
     const lastT = Math.round((lastTime - firstTime) / 86400000);

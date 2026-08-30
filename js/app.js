@@ -230,7 +230,7 @@ async function loadAllState() {
 
   state.bodyLogs = bodyAll
     .filter((rec) => rec.users && rec.users[state.currentUserId])
-    .map((rec) => ({ date: rec.date, weight: rec.users[state.currentUserId].weight, bodyFat: rec.users[state.currentUserId].bodyFat }))
+    .map((rec) => ({ date: rec.date, weight: rec.users[state.currentUserId].weight, bodyFat: rec.users[state.currentUserId].bodyFat, periodStart: !!rec.users[state.currentUserId].periodStart }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
@@ -555,7 +555,7 @@ function renderMealCard(slice, mealDef) {
     const kc = kcalForAmount(food, item.amount);
     return `
       <div class="food-row" data-mt="${mealDef.id}" data-idx="${idx}" data-action="edit-item">
-        <div class="fname">${escapeHtml(food.name)}</div>
+        <div class="fname">${escapeHtml(food.name)}${item.note ? `<div class="fnote">${escapeHtml(item.note)}</div>` : ''}</div>
         <div class="famt">${fmt(item.amount)} ${UNIT_LABELS[food.unit]}</div>
         <div class="fkcal">${fmt(kc)}</div>
       </div>`;
@@ -754,7 +754,7 @@ function renderDaySummaryFoodsView(slice) {
       }
       const food = state.foodsById[it.foodId];
       if (!food) return '';
-      return `<div class="compact-food-row"><span class="cf-name">${escapeHtml(food.name)}</span><span class="cf-amt">${fmt(it.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, it.amount))}</span></div>`;
+      return `<div class="compact-food-row"><span class="cf-name">${escapeHtml(food.name)}${it.note ? ` <span class="cf-note">— ${escapeHtml(it.note)}</span>` : ''}</span><span class="cf-amt">${fmt(it.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, it.amount))}</span></div>`;
     }).join('');
     return `
     <div class="compact-meal-block">
@@ -780,7 +780,7 @@ function gatherDayItems(slice) {
       }
       const food = state.foodsById[it.foodId];
       if (!food) return;
-      allItems.push({ name: food.name, mealLabel: m.label, amount: it.amount, unit: food.unit, kcal: kcalForAmount(food, it.amount) });
+      allItems.push({ name: food.name, mealLabel: m.label, amount: it.amount, unit: food.unit, kcal: kcalForAmount(food, it.amount), note: it.note });
     });
   });
   return allItems;
@@ -788,7 +788,7 @@ function gatherDayItems(slice) {
 
 function summaryItemRow(it) {
   return `<div class="summary-item-row">
-    <div><div class="n">${escapeHtml(it.name)}</div><div class="m">${it.mealLabel} · ${fmt(it.amount)} ${UNIT_LABELS[it.unit]}</div></div>
+    <div><div class="n">${escapeHtml(it.name)}</div><div class="m">${it.mealLabel} · ${fmt(it.amount)} ${UNIT_LABELS[it.unit]}${it.note ? ` · ${escapeHtml(it.note)}` : ''}</div></div>
     <div class="k">${fmt(it.kcal)} kcal</div>
   </div>`;
 }
@@ -810,6 +810,7 @@ function openAmountSheet(ctx) {
   const input = document.getElementById('amount-value');
   input.value = defaultAmount;
   input.step = stepForUnit(food.unit);
+  document.getElementById('amount-note').value = ctx.mode === 'edit' ? (ctx.currentNote || '') : '';
   updateAmountPreview();
 
   document.getElementById('btn-remove-amount').style.display = ctx.mode === 'edit' ? 'inline-flex' : 'none';
@@ -832,12 +833,17 @@ async function confirmAmountSheet() {
   if (!ctx) return;
   const amount = parseFloat(document.getElementById('amount-value').value);
   if (!amount || amount <= 0) { showToast('Ingresá una cantidad válida.'); return; }
+  const note = document.getElementById('amount-note').value.trim();
 
   const meal = currentMeals()[ctx.mealType];
   if (ctx.mode === 'edit') {
     meal.items[ctx.itemIndex].amount = amount;
+    if (note) meal.items[ctx.itemIndex].note = note;
+    else delete meal.items[ctx.itemIndex].note;
   } else {
-    meal.items.push({ foodId: ctx.foodId, amount });
+    const newItem = { foodId: ctx.foodId, amount };
+    if (note) newItem.note = note;
+    meal.items.push(newItem);
   }
   meal.skip = false;
   await saveCurrentDay();
@@ -1513,7 +1519,8 @@ function renderProgressTab() {
   }
 
   const weightEntries = logs.map((l) => ({ date: l.date, value: l.weight }));
-  drawProgressChart(document.getElementById('chart-weight'), weightEntries, { goal, showProjection: true });
+  const periodDates = new Set(logs.filter((l) => l.periodStart).map((l) => l.date));
+  drawProgressChart(document.getElementById('chart-weight'), weightEntries, { goal, showProjection: true, periodDates });
 
   const fatEntries = logs.filter((l) => l.bodyFat != null).map((l) => ({ date: l.date, value: l.bodyFat }));
   drawProgressChart(document.getElementById('chart-fat'), fatEntries, {});
@@ -1529,7 +1536,7 @@ function renderProgressTab() {
       const bmi = computeBMI(l.weight, height);
       return `
       <div class="log-item" data-action="edit-body-log" data-date="${l.date}">
-        <div class="d">${formatShortDate(l.date)}</div>
+        <div class="d">${formatShortDate(l.date)}${l.periodStart ? ' <span class="period-dot" title="Inicio de período"></span>' : ''}</div>
         <div class="v">${fmt(l.weight, 1)} kg${l.bodyFat != null ? ` · ${fmt(l.bodyFat, 1)}% grasa` : ''}${bmi ? ` · IMC ${fmt(bmi, 1)}` : ''}</div>
       </div>`;
     }).join('');
@@ -1543,6 +1550,7 @@ function openBodyLogSheet(date) {
   document.getElementById('bl-date').value = date || todayStr();
   document.getElementById('bl-weight').value = entry ? entry.weight : (state.bodyLogs.length ? state.bodyLogs[state.bodyLogs.length - 1].weight : '');
   document.getElementById('bl-fat').value = entry && entry.bodyFat != null ? entry.bodyFat : '';
+  document.getElementById('bl-period-start').checked = entry ? !!entry.periodStart : false;
   document.getElementById('btn-delete-body-log').style.display = entry ? 'inline-flex' : 'none';
   updateBmiPreview();
   openSheet('sheet-body-log');
@@ -1570,7 +1578,11 @@ async function saveBodyLogFromSheet() {
 
   const rec = (await DB.get('body', date)) || { date, users: {} };
   if (!rec.users) rec.users = {};
-  rec.users[state.currentUserId] = { weight, bodyFat: fatVal !== '' ? parseFloat(fatVal) : null };
+  rec.users[state.currentUserId] = {
+    weight,
+    bodyFat: fatVal !== '' ? parseFloat(fatVal) : null,
+    periodStart: document.getElementById('bl-period-start').checked
+  };
   await DB.put('body', rec);
 
   await loadAllState();
@@ -1797,7 +1809,7 @@ function wireEvents() {
     else if (action === 'edit-item') {
       const idx = parseInt(actionEl.dataset.idx, 10);
       const item = currentMeals()[mt].items[idx];
-      openAmountSheet({ mode: 'edit', foodId: item.foodId, mealType: mt, itemIndex: idx, currentAmount: item.amount });
+      openAmountSheet({ mode: 'edit', foodId: item.foodId, mealType: mt, itemIndex: idx, currentAmount: item.amount, currentNote: item.note });
     } else if (action === 'edit-group-item') {
       const idx = parseInt(actionEl.dataset.idx, 10);
       openDayGroupSheet(mt, idx);
