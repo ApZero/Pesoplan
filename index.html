@@ -138,6 +138,7 @@
           <span><span class="dot" style="background:#C46A3F;"></span>Peso</span>
           <span><span class="dot" style="background:#D6A24A;"></span>Meta</span>
           <span><span class="dot" style="background:#6B7353;"></span>Proyección</span>
+          <span><span class="dot" style="background:#DC3545;"></span>Inicio de período</span>
         </div>
       </div>
 
@@ -499,6 +500,10 @@
       <button class="mini-btn" id="amount-plus" style="width:44px;height:44px;">+</button>
     </div>
     <div class="text-center num-md" id="amount-kcal-preview" style="margin-top:6px; color:var(--terracotta-dark);"></div>
+    <div class="field" style="margin-top:16px;">
+      <label>Nota <span class="hint text-faint">opcional</span></label>
+      <input type="text" id="amount-note" placeholder="¿Qué fue esto?">
+    </div>
   </div>
   <div class="sheet-foot">
     <div class="btn-row">
@@ -596,6 +601,10 @@
       </div>
     </div>
     <p class="small text-faint" id="bl-bmi-preview"></p>
+    <div class="field checkbox-row" style="margin-top:4px;">
+      <input type="checkbox" id="bl-period-start">
+      <label class="mb-0" for="bl-period-start" style="margin:0;">Inicio de período</label>
+    </div>
   </div>
   <div class="sheet-foot">
     <div class="btn-row">
