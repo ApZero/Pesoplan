@@ -167,14 +167,18 @@ function drawProgressChart(canvas, entries, opts = {}) {
     ctx.fill();
   });
 
-  // marcadores de inicio de período: mismo tamaño, encima del punto de peso
+  // marcadores de inicio de período: mismo tamaño que el punto de peso,
+  // pero desplazados arriba para que se vean como algo separado, no
+  // superpuesto (más fácil de distinguir de un vistazo)
   if (opts.periodDates && opts.periodDates.size) {
     ctx.fillStyle = '#DC3545';
+    const dotOffset = 9;
     entries.forEach((e) => {
       if (!opts.periodDates.has(e.date)) return;
       const t = Math.round((strToDate(e.date).getTime() - firstTime) / 86400000);
+      const y = Math.max(padT + 4, yForV(e.value) - dotOffset);
       ctx.beginPath();
-      ctx.arc(xForT(t), yForV(e.value), 2.6, 0, Math.PI * 2);
+      ctx.arc(xForT(t), y, 2.6, 0, Math.PI * 2);
       ctx.fill();
     });
   }

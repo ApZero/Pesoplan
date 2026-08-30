@@ -58,16 +58,46 @@ function showToast(msg) {
 
 function openSheet(id) {
   document.getElementById('sheet-backdrop').classList.add('is-open');
-  document.getElementById(id).classList.add('is-open');
+  const sheet = document.getElementById(id);
+  sheet.style.bottom = '';
+  sheet.style.maxHeight = '';
+  sheet.classList.add('is-open');
+  adjustOpenSheetsForKeyboard();
 }
 function closeSheet(id) {
-  document.getElementById(id).classList.remove('is-open');
+  const sheet = document.getElementById(id);
+  sheet.classList.remove('is-open');
+  sheet.style.bottom = '';
+  sheet.style.maxHeight = '';
   const anyOpen = document.querySelectorAll('.sheet.is-open').length > 0;
   if (!anyOpen) document.getElementById('sheet-backdrop').classList.remove('is-open');
 }
 function closeAllSheets() {
-  document.querySelectorAll('.sheet.is-open').forEach((s) => s.classList.remove('is-open'));
+  document.querySelectorAll('.sheet.is-open').forEach((s) => {
+    s.classList.remove('is-open');
+    s.style.bottom = '';
+    s.style.maxHeight = '';
+  });
   document.getElementById('sheet-backdrop').classList.remove('is-open');
+}
+
+/**
+ * En mobile, el teclado on-screen puede tapar la parte de abajo de un
+ * sheet (por ejemplo la lista de resultados al buscar un alimento).
+ * La visualViewport API nos dice cuánto se achicó la parte visible de
+ * la pantalla, y con eso subimos y achicamos el sheet abierto para que
+ * quede siempre por encima del teclado.
+ */
+function adjustOpenSheetsForKeyboard() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  const openSheets = document.querySelectorAll('.sheet.is-open');
+  if (openSheets.length === 0) return;
+  const keyboardOffset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  openSheets.forEach((sheet) => {
+    sheet.style.bottom = `${keyboardOffset}px`;
+    sheet.style.maxHeight = `${Math.round(vv.height * 0.9)}px`;
+  });
 }
 
 function fmt(n, decimals = 0) {
@@ -104,6 +134,11 @@ function dateLabelPrefix(dateStr) {
 async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', adjustOpenSheetsForKeyboard);
+    window.visualViewport.addEventListener('scroll', adjustOpenSheetsForKeyboard);
   }
 
   await ensureFoodsSeed();
