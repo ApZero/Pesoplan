@@ -111,6 +111,34 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * Copia los valores nutricionales de un alimento en un objeto plano,
+ * para "congelarlos" dentro de un item del día. Así, si el alimento se
+ * edita después en Alimentos, lo que ya quedó planificado no cambia.
+ */
+function snapshotFood(food) {
+  return {
+    name: food.name,
+    unit: food.unit,
+    baseAmount: food.baseAmount,
+    kcal: food.kcal,
+    protein: food.protein,
+    carbs: food.carbs,
+    fat: food.fat,
+    fiber: food.fiber
+  };
+}
+
+/**
+ * Resuelve los datos de un alimento para un item de comida ya guardado:
+ * usa su snapshot congelado si lo tiene (items agregados desde esta
+ * actualización en adelante), y si no, cae a los datos actuales del
+ * alimento (items viejos, de antes de que existiera el snapshot).
+ */
+function getItemFood(item) {
+  return item.snapshot || state.foodsById[item.foodId];
+}
+
 function emptyStateHtml(glyph, title, text) {
   return `<div class="empty-state"><div class="glyph">${glyph}</div><h4>${title}</h4><p>${text}</p></div>`;
 }
@@ -145,6 +173,7 @@ async function init() {
   await ensureCategoriesSeed();
   await migrateToMultiUserIfNeeded();
   await loadAllState();
+  await ensureItemSnapshotsMigration();
   const backupResult = await runAutoBackupIfNeeded(state.appSettings);
   refreshAutoBackupStatus();
 
@@ -229,6 +258,49 @@ async function migrateToMultiUserIfNeeded() {
       await DB.put('body', { date: b.date, users: { [defaultUser.id]: { weight: b.weight, bodyFat: b.bodyFat != null ? b.bodyFat : null } } });
     }
   }
+}
+
+/**
+ * Migración de una sola vez: "congela" los valores nutricionales de los
+ * items de comida que ya estaban guardados de antes de que existiera el
+ * snapshot por item. No podemos recuperar los valores que tenía el
+ * alimento en el momento en que se agregó originalmente (esa información
+ * nunca se guardó), así que se usan los valores actuales como punto de
+ * partida — pero de ahí en más, editar el alimento en Alimentos ya no
+ * afecta esos días.
+ */
+async function ensureItemSnapshotsMigration() {
+  if (state.appSettings.itemsSnapshotted) return;
+
+  const allDays = await DB.getAll('days');
+  for (const rec of allDays) {
+    if (!rec.users) continue;
+    let changed = false;
+    Object.values(rec.users).forEach((slice) => {
+      if (!slice.meals) return;
+      MEAL_TYPES.forEach((m) => {
+        const meal = slice.meals[m.id];
+        if (!meal) return;
+        meal.items.forEach((it) => {
+          if (it.type === 'group') {
+            it.items.forEach((sub) => {
+              if (!sub.snapshot) {
+                const food = state.foodsById[sub.foodId];
+                if (food) { sub.snapshot = snapshotFood(food); changed = true; }
+              }
+            });
+          } else if (!it.snapshot) {
+            const food = state.foodsById[it.foodId];
+            if (food) { it.snapshot = snapshotFood(food); changed = true; }
+          }
+        });
+      });
+    });
+    if (changed) await DB.put('days', rec);
+  }
+
+  state.appSettings.itemsSnapshotted = true;
+  await saveAppSettings();
 }
 
 async function loadAllState() {
@@ -585,7 +657,7 @@ function renderMealCard(slice, mealDef) {
         <div class="fkcal">${fmt(t.kcal)}</div>
       </div>`;
     }
-    const food = state.foodsById[item.foodId];
+    const food = getItemFood(item);
     if (!food) return '';
     const kc = kcalForAmount(food, item.amount);
     return `
@@ -712,6 +784,59 @@ function renderDaySummarySheet() {
   document.getElementById('summary-sheet-body').innerHTML = toggle + body;
 }
 
+const MEAL_DONUT_COLORS = {
+  desayuno: '#C46A3F',
+  colacion_manana: '#D6A24A',
+  almuerzo: '#6B7353',
+  colacion_tarde: '#B5822F',
+  cena: '#9C4A3A'
+};
+
+/**
+ * Anillo (donut) con la distribución de calorías consumidas por comida,
+ * usando la misma técnica de stroke-dasharray que el anillo de Hoy.
+ */
+function renderMealDonutChart(slice) {
+  const data = MEAL_TYPES.map((m) => {
+    const meal = slice.meals[m.id];
+    const kcal = meal.skip ? 0 : sumItemsNutrition(meal.items, state.foodsById).kcal;
+    return { label: m.label, kcal, skip: meal.skip, color: MEAL_DONUT_COLORS[m.id] };
+  });
+  const total = data.reduce((s, d) => s + d.kcal, 0);
+
+  const legend = data.map((d) => `
+    <div class="donut-legend-row ${d.skip ? 'is-skipped' : ''}">
+      <span class="donut-dot" style="background:${d.color};"></span>
+      <span class="donut-label">${d.label}</span>
+      <span class="donut-value">${d.skip ? 'omitida' : `${fmt(d.kcal)} kcal`}</span>
+    </div>`).join('');
+
+  if (total <= 0) {
+    return `<div class="eyebrow" style="margin-bottom:8px;">Por comida</div>${emptyStateHtml('🍽️', 'Nada consumido todavía', 'Agregá alimentos en cualquier sección de Hoy para ver la distribución.')}`;
+  }
+
+  const R = 40;
+  const C = 2 * Math.PI * R;
+  let cumulative = 0;
+  const segments = data.filter((d) => d.kcal > 0).map((d) => {
+    const arcLen = (d.kcal / total) * C;
+    const dashoffset = -cumulative;
+    cumulative += arcLen;
+    return `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${d.color}" stroke-width="16" stroke-dasharray="${arcLen} ${C - arcLen}" stroke-dashoffset="${dashoffset}"></circle>`;
+  }).join('');
+
+  return `
+    <div class="eyebrow" style="margin-bottom:8px;">Por comida</div>
+    <div class="donut-chart-wrap">
+      <svg viewBox="0 0 100 100" class="donut-svg">
+        <circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--cream-dim)" stroke-width="16"></circle>
+        <g transform="rotate(-90 50 50)">${segments}</g>
+      </svg>
+      <div class="donut-center"><div class="n">${fmt(total)}</div><div class="l">kcal</div></div>
+    </div>
+    <div class="donut-legend">${legend}</div>`;
+}
+
 function renderDaySummaryResumenView(slice) {
   const totals = computeDayTotals(state.currentDay, state.currentUserId);
   const limit = state.settings.dailyLimit || 0;
@@ -734,16 +859,7 @@ function renderDaySummaryResumenView(slice) {
       </div>
     </div>
     <div class="summary-block">
-      <div class="eyebrow" style="margin-bottom:8px;">Por comida</div>
-      ${MEAL_TYPES.map((m) => {
-        const meal = slice.meals[m.id];
-        if (meal.skip) {
-          return `<div class="summary-meal-row is-skipped"><div class="label"><span class="dot" style="background:var(--ink-faint);"></span>${m.label}</div><div class="val">omitida</div></div>`;
-        }
-        const t = sumItemsNutrition(meal.items, state.foodsById);
-        const target = state.settings.mealTargets[m.id] || 0;
-        return `<div class="summary-meal-row"><div class="label"><span class="dot" style="background:var(--terracotta);"></span>${m.label}</div><div class="val">${fmt(t.kcal)} / ${fmt(target)} kcal</div></div>`;
-      }).join('')}
+      ${renderMealDonutChart(slice)}
     </div>`;
 
   const allItems = gatherDayItems(slice);
@@ -781,13 +897,13 @@ function renderDaySummaryFoodsView(slice) {
       if (it.type === 'group') {
         const gt = sumItemsNutrition(it.items, state.foodsById);
         const subRows = it.items.map((sub) => {
-          const food = state.foodsById[sub.foodId];
+          const food = getItemFood(sub);
           if (!food) return '';
           return `<div class="compact-food-row compact-sub-row"><span class="cf-name">${escapeHtml(food.name)}</span><span class="cf-amt">${fmt(sub.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, sub.amount))}</span></div>`;
         }).join('');
         return `<div class="compact-food-row compact-group-row"><span class="cf-name">🍱 ${escapeHtml(it.name)}</span><span class="cf-kcal">${fmt(gt.kcal)}</span></div>${subRows}`;
       }
-      const food = state.foodsById[it.foodId];
+      const food = getItemFood(it);
       if (!food) return '';
       return `<div class="compact-food-row"><span class="cf-name">${escapeHtml(food.name)}${it.note ? ` <span class="cf-note">— ${escapeHtml(it.note)}</span>` : ''}</span><span class="cf-amt">${fmt(it.amount)}${UNIT_LABELS[food.unit]}</span><span class="cf-kcal">${fmt(kcalForAmount(food, it.amount))}</span></div>`;
     }).join('');
@@ -807,13 +923,13 @@ function gatherDayItems(slice) {
     meal.items.forEach((it) => {
       if (it.type === 'group') {
         it.items.forEach((sub) => {
-          const food = state.foodsById[sub.foodId];
+          const food = getItemFood(sub);
           if (!food) return;
           allItems.push({ name: food.name, mealLabel: `${m.label} · ${it.name}`, amount: sub.amount, unit: food.unit, kcal: kcalForAmount(food, sub.amount) });
         });
         return;
       }
-      const food = state.foodsById[it.foodId];
+      const food = getItemFood(it);
       if (!food) return;
       allItems.push({ name: food.name, mealLabel: m.label, amount: it.amount, unit: food.unit, kcal: kcalForAmount(food, it.amount), note: it.note });
     });
@@ -877,6 +993,8 @@ async function confirmAmountSheet() {
     else delete meal.items[ctx.itemIndex].note;
   } else {
     const newItem = { foodId: ctx.foodId, amount };
+    const food = state.foodsById[ctx.foodId];
+    if (food) newItem.snapshot = snapshotFood(food);
     if (note) newItem.note = note;
     meal.items.push(newItem);
   }
@@ -969,9 +1087,9 @@ function renderPickerList() {
  */
 function cloneMealItem(item) {
   if (item.type === 'group') {
-    return { ...item, instanceId: uid('gi'), items: item.items.map((it) => ({ ...it })) };
+    return { ...item, instanceId: uid('gi'), items: item.items.map((it) => ({ ...it, snapshot: it.snapshot ? { ...it.snapshot } : undefined })) };
   }
-  return { ...item };
+  return { ...item, snapshot: item.snapshot ? { ...item.snapshot } : undefined };
 }
 
 async function addGroupToMeal(groupId) {
@@ -984,7 +1102,10 @@ async function addGroupToMeal(groupId) {
     instanceId: uid('gi'),
     groupId: group.id,
     name: group.name,
-    items: group.items.map((it) => ({ ...it }))
+    items: group.items.map((it) => {
+      const food = state.foodsById[it.foodId];
+      return { foodId: it.foodId, amount: it.amount, ...(food ? { snapshot: snapshotFood(food) } : {}) };
+    })
   });
   meal.skip = false;
   await saveCurrentDay();
@@ -1014,7 +1135,7 @@ function openDayGroupSheet(mealType, itemIndex) {
 function renderDayGroupItemsEditor() {
   const wrap = document.getElementById('dg-items-list');
   wrap.innerHTML = state.dayGroupItems.map((it, idx) => {
-    const food = state.foodsById[it.foodId];
+    const food = getItemFood(it);
     if (!food) return '';
     return `
     <div class="field-row" style="align-items:end; margin-bottom:8px;">
@@ -1037,7 +1158,7 @@ function applyDayGroupMultiplier() {
   const factor = parseFloat(document.getElementById('dg-multiplier').value);
   if (!factor || factor <= 0) { showToast('Ingresá un multiplicador válido.'); return; }
   state.dayGroupItems.forEach((it) => {
-    const food = state.foodsById[it.foodId];
+    const food = getItemFood(it);
     const step = food ? stepForUnit(food.unit) : 1;
     it.amount = Math.max(step, Math.round((it.amount * factor) / step) * step);
   });

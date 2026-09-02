@@ -146,5 +146,6 @@ const SEED_APP_SETTINGS = {
   currentUserId: null,
   lastAutoBackupDate: null,
   autoDownloadBackup: true,
-  onboarded: false
+  onboarded: false,
+  itemsSnapshotted: false
 };

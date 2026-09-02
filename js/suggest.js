@@ -67,6 +67,11 @@ function suggestForMeal(allFoods, mealType, targetKcal) {
  * un alimento individual {foodId, amount} o una instancia de grupo
  * {type:'group', items:[...]} — en ese caso suma recursivamente sus
  * propios items (que siempre son alimentos individuales).
+ *
+ * Si el item tiene un "snapshot" (los valores del alimento congelados al
+ * momento de agregarlo a ese día), se usa ese en vez de los datos actuales
+ * de foodsById — así, editar un alimento después no cambia lo que ya
+ * quedó planificado en días anteriores.
  */
 function sumItemsNutrition(items, foodsById) {
   const totals = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
@@ -77,7 +82,7 @@ function sumItemsNutrition(items, foodsById) {
       totals.fat += sub.fat; totals.fiber += sub.fiber;
       return;
     }
-    const food = foodsById[it.foodId];
+    const food = it.snapshot || foodsById[it.foodId];
     if (!food) return;
     const ratio = it.amount / food.baseAmount;
     totals.kcal += food.kcal * ratio;
