@@ -829,7 +829,7 @@ function renderMealDonutChart(slice) {
     <div class="eyebrow" style="margin-bottom:8px;">Por comida</div>
     <div class="donut-chart-wrap">
       <svg viewBox="0 0 100 100" class="donut-svg">
-        <circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--cream-dim)" stroke-width="16"></circle>
+        <circle cx="50" cy="50" r="${R}" fill="none" stroke="#ECE4D6" stroke-width="16"></circle>
         <g transform="rotate(-90 50 50)">${segments}</g>
       </svg>
       <div class="donut-center"><div class="n">${fmt(total)}</div><div class="l">kcal</div></div>
@@ -1883,6 +1883,28 @@ async function handleImportFile(file) {
   }
 }
 
+/**
+ * Fuerza que el navegador deje de usar la versión instalada (service
+ * worker + caché) y vuelva a buscar todo por red. Los datos guardados
+ * (IndexedDB) no se tocan — esto solo afecta a los archivos de la app.
+ */
+async function forceAppUpdate() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    showToast('Actualizando…');
+    setTimeout(() => location.reload(), 500);
+  } catch (err) {
+    showToast('No se pudo actualizar automáticamente — cerrá la app del todo y volvé a abrirla.');
+  }
+}
+
 async function handleResetAll() {
   if (!confirm('Esto borra TODOS los perfiles, alimentos, grupos, planes y registros de este dispositivo. ¿Continuar?')) return;
   if (!confirm('Última confirmación: esta acción no se puede deshacer. ¿Borrar todo?')) return;
@@ -2158,6 +2180,7 @@ function wireEvents() {
     const btn = e.target.closest('[data-action="restore-backup"]');
     if (btn) handleRestoreBackup(btn.dataset.date);
   });
+  document.getElementById('btn-force-update').addEventListener('click', forceAppUpdate);
   document.getElementById('btn-reset-all').addEventListener('click', handleResetAll);
 
   // Sheets: cierre
