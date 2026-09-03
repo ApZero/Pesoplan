@@ -792,24 +792,26 @@ const MEAL_DONUT_COLORS = {
   cena: '#9C4A3A'
 };
 
+const MEAL_SHORT_LABELS = {
+  desayuno: 'Desayuno',
+  colacion_manana: 'Snack AM',
+  almuerzo: 'Almuerzo',
+  colacion_tarde: 'Snack PM',
+  cena: 'Cena'
+};
+
 /**
- * Anillo (donut) con la distribución de calorías consumidas por comida,
- * usando la misma técnica de stroke-dasharray que el anillo de Hoy.
+ * Anillo (donut) con la distribución de calorías consumidas por comida.
+ * Cada porción lleva su propia etiqueta (nombre + kcal) ubicada junto al
+ * arco correspondiente, en vez de una lista aparte.
  */
 function renderMealDonutChart(slice) {
   const data = MEAL_TYPES.map((m) => {
     const meal = slice.meals[m.id];
     const kcal = meal.skip ? 0 : sumItemsNutrition(meal.items, state.foodsById).kcal;
-    return { label: m.label, kcal, skip: meal.skip, color: MEAL_DONUT_COLORS[m.id] };
+    return { label: MEAL_SHORT_LABELS[m.id] || m.label, kcal, color: MEAL_DONUT_COLORS[m.id] };
   });
   const total = data.reduce((s, d) => s + d.kcal, 0);
-
-  const legend = data.map((d) => `
-    <div class="donut-legend-row ${d.skip ? 'is-skipped' : ''}">
-      <span class="donut-dot" style="background:${d.color};"></span>
-      <span class="donut-label">${d.label}</span>
-      <span class="donut-value">${d.skip ? 'omitida' : `${fmt(d.kcal)} kcal`}</span>
-    </div>`).join('');
 
   if (total <= 0) {
     return `<div class="eyebrow" style="margin-bottom:8px;">Por comida</div>${emptyStateHtml('🍽️', 'Nada consumido todavía', 'Agregá alimentos en cualquier sección de Hoy para ver la distribución.')}`;
@@ -817,24 +819,41 @@ function renderMealDonutChart(slice) {
 
   const R = 40;
   const C = 2 * Math.PI * R;
+  const labelR = 56;
+  const nonZero = data.filter((d) => d.kcal > 0);
+
   let cumulative = 0;
-  const segments = data.filter((d) => d.kcal > 0).map((d) => {
+  const segments = nonZero.map((d) => {
     const arcLen = (d.kcal / total) * C;
     const dashoffset = -cumulative;
     cumulative += arcLen;
     return `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${d.color}" stroke-width="16" stroke-dasharray="${arcLen} ${C - arcLen}" stroke-dashoffset="${dashoffset}"></circle>`;
   }).join('');
 
+  let angleCursor = -90;
+  const labels = nonZero.map((d) => {
+    const sweepDeg = (d.kcal / total) * 360;
+    const midDeg = angleCursor + sweepDeg / 2;
+    angleCursor += sweepDeg;
+    const rad = (midDeg * Math.PI) / 180;
+    const x = 50 + labelR * Math.cos(rad);
+    const y = 50 + labelR * Math.sin(rad);
+    const anchor = x > 53 ? 'start' : (x < 47 ? 'end' : 'middle');
+    return `
+      <text x="${x.toFixed(1)}" y="${(y - 2).toFixed(1)}" text-anchor="${anchor}" font-size="7.2" font-weight="700" fill="${d.color}" font-family="Inter, sans-serif">${escapeHtml(d.label)}</text>
+      <text x="${x.toFixed(1)}" y="${(y + 6.5).toFixed(1)}" text-anchor="${anchor}" font-size="6.2" fill="#8C8474" font-family="'JetBrains Mono', monospace">${fmt(d.kcal)} kcal</text>`;
+  }).join('');
+
   return `
     <div class="eyebrow" style="margin-bottom:8px;">Por comida</div>
     <div class="donut-chart-wrap">
-      <svg viewBox="0 0 100 100" class="donut-svg">
+      <svg viewBox="-42 -42 184 184" class="donut-svg">
         <circle cx="50" cy="50" r="${R}" fill="none" stroke="#ECE4D6" stroke-width="16"></circle>
         <g transform="rotate(-90 50 50)">${segments}</g>
+        ${labels}
       </svg>
       <div class="donut-center"><div class="n">${fmt(total)}</div><div class="l">kcal</div></div>
-    </div>
-    <div class="donut-legend">${legend}</div>`;
+    </div>`;
 }
 
 function renderDaySummaryResumenView(slice) {
